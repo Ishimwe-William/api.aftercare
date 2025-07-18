@@ -22,6 +22,7 @@ public class SignupRequest {
     private String email;
     @Size(max = 100)
     private String fullName;
+    private String photoUrl;
     @Size(max = 15)
     private String phoneNumber;
     @Size(max = 100)

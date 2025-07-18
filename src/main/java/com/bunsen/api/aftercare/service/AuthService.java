@@ -11,6 +11,7 @@ import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.repository.RoleRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
 import com.bunsen.api.aftercare.security.jwt.JwtUtils;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.mail.MessagingException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,14 +20,18 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,18 +44,23 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtUtils jwtUtils;
     private final EmailService emailService;
+    private final PasswordEncoder passwordEncoder;
+    private final GoogleTokenService googleTokenService;
 
     @Value("${email.sender.resetPasswordUrl}")
     private String resetPasswordUrlBase;
 
     public AuthService(AuthenticationManager authenticationManager, UserRepository userRepository,
-                       RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils, EmailService emailService) {
+                       RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
+                       EmailService emailService, PasswordEncoder passwordEncoder, GoogleTokenService googleTokenService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.encoder = encoder;
         this.jwtUtils = jwtUtils;
         this.emailService = emailService;
+        this.passwordEncoder = passwordEncoder;
+        this.googleTokenService = googleTokenService;
     }
 
     public JwtResponse authenticateUser(LoginRequest loginRequest) {
@@ -66,6 +76,7 @@ public class AuthService {
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
             String jwt = jwtUtils.generateJwtToken(authentication);
+            String refreshToken = jwtUtils.generateRefreshToken(authentication);
 
             UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
             List<String> roles = userDetails.getAuthorities().stream()
@@ -73,7 +84,7 @@ public class AuthService {
                     .collect(Collectors.toList());
 
             logger.debug("User authenticated successfully: {}", userDetails.getUsername());
-            return new JwtResponse(jwt, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles);
+            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles);
         } catch (Exception e) {
             logger.error("Authentication error for input {}: {}", loginRequest.getUsernameOrEmail(), e.getMessage());
             throw new BadRequestException("Invalid username or password");
@@ -94,7 +105,6 @@ public class AuthService {
             return new MessageResponse("Error: Email is already in use!");
         }
 
-        // Create a new user's account
         User user = new User();
         user.setUsername(signupRequest.getUsername());
         user.setEmail(signupRequest.getEmail());
@@ -184,5 +194,98 @@ public class AuthService {
 
         logger.info("Password reset successful for user: {}", username);
         return new MessageResponse("Password reset successfully.");
+    }
+
+    public JwtResponse authenticateWithGoogle(String idToken) {
+        logger.debug("Attempting to authenticate user with Google token: {}", idToken);
+        try {
+            GoogleIdToken token = googleTokenService.verifyToken(idToken);
+            GoogleTokenService.GoogleUserInfo userInfo = googleTokenService.getUserInfo(token);
+
+            logger.debug("User authenticated successfully: {}", userInfo.getEmail());
+
+            if (!userInfo.isEmailVerified()) {
+                throw new RuntimeException("Email must be verified");
+            }
+
+            User user = userRepository.findByEmail(userInfo.getEmail())
+                    .orElseGet(() -> createUserFromGoogleInfo(userInfo));
+
+            logger.debug("User created or found: {}", user.getUsername());
+
+            return generateJwtForUser(user);
+        } catch (Exception e) {
+            logger.error("Google authentication failed: {}", e.getMessage());
+            throw new RuntimeException("Invalid Google token");
+        }
+    }
+
+    private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
+        User user = new User();
+        user.setEmail(userInfo.getEmail());
+        user.setUsername(generateUniqueUsername(userInfo.getEmail().split("@")[0]));
+        user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
+        user.setPhotoUrl(userInfo.getPictureUrl());
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_CUSTOMER).orElseThrow()));
+
+        return userRepository.save(user);
+    }
+
+    private JwtResponse generateJwtForUser(User user) {
+        List<GrantedAuthority> authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                .collect(Collectors.toList());
+
+        UserDetailsImpl userDetails = new UserDetailsImpl(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getPassword(),
+                authorities,
+                user
+        );
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+        return getJwtResponse(user, authentication);
+    }
+
+    private JwtResponse getJwtResponse(User user, Authentication authentication) {
+        String jwt = jwtUtils.generateJwtToken(authentication);
+        String refreshToken = jwtUtils.generateRefreshToken(authentication);
+
+        List<String> roles = user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
+        return new JwtResponse(jwt, refreshToken, user.getId(), user.getUsername(), user.getEmail(), roles);
+    }
+
+    private String generateUniqueUsername(String baseUsername) {
+        String username = baseUsername;
+        int counter = 1;
+
+        while (userRepository.findByUsername(username).isPresent()) {
+            username = baseUsername + counter;
+            counter++;
+        }
+
+        return username;
+    }
+
+    public JwtResponse refreshToken(String refreshToken) {
+        if (!jwtUtils.validateJwtToken(refreshToken)) {
+            throw new RuntimeException("Invalid or expired refresh token");
+        }
+
+        String username = jwtUtils.getUserNameFromJwtToken(refreshToken);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<GrantedAuthority> authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                .collect(Collectors.toList());
+
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                user.getUsername(), null, authorities);
+
+        return getJwtResponse(user, authentication);
     }
 }

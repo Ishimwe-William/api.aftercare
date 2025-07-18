@@ -22,6 +22,9 @@ public class JwtUtils {
     @Value("${aftercare.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
+    @Value("${aftercare.app.jwtRefreshExpirationMs}")
+    private int jwtRefreshExpirationMs;
+
     public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
@@ -33,6 +36,16 @@ public class JwtUtils {
                 .compact();
     }
 
+    public String generateRefreshToken(Authentication authentication) {
+        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+
+        return Jwts.builder()
+                .subject(userPrincipal.getUsername())
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + jwtRefreshExpirationMs))
+                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), Jwts.SIG.HS512)
+                .compact();
+    }
     public String getUserNameFromJwtToken(String token) {
         return Jwts.parser()
                 .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()))

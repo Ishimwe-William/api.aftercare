@@ -1,17 +1,21 @@
 package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.model.User;
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
 public class UserDetailsImpl implements UserDetails {
+    @Getter
     private final Long id;
     private final String username;
+    @Getter
     private final String email;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
+    @Getter
     private final User user;
 
     public UserDetailsImpl(Long id, String username, String email, String password,
@@ -22,14 +26,6 @@ public class UserDetailsImpl implements UserDetails {
         this.password = password;
         this.authorities = authorities;
         this.user = user;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public String getEmail() {
-        return email;
     }
 
     @Override
@@ -67,7 +63,4 @@ public class UserDetailsImpl implements UserDetails {
         return user.isEnabled();
     }
 
-    public User getUser() {
-        return user;
-    }
 }

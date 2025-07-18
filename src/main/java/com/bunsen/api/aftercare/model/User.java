@@ -46,6 +46,7 @@ public class User {
     private Set<Role> roles = new HashSet<>();
 
     private String fullName;
+    private String photoUrl;
     private String phoneNumber;
     private boolean enabled = true;
 
