@@ -26,8 +26,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.security.GeneralSecurityException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -84,7 +82,7 @@ public class AuthService {
                     .collect(Collectors.toList());
 
             logger.debug("User authenticated successfully: {}", userDetails.getUsername());
-            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUsername(), userDetails.getEmail(), roles);
+            return new JwtResponse(jwt, refreshToken, userDetails.getId(),userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl());
         } catch (Exception e) {
             logger.error("Authentication error for input {}: {}", loginRequest.getUsernameOrEmail(), e.getMessage());
             throw new BadRequestException("Invalid username or password");
@@ -202,8 +200,6 @@ public class AuthService {
             GoogleIdToken token = googleTokenService.verifyToken(idToken);
             GoogleTokenService.GoogleUserInfo userInfo = googleTokenService.getUserInfo(token);
 
-            logger.debug("User authenticated successfully: {}", userInfo.getEmail());
-
             if (!userInfo.isEmailVerified()) {
                 throw new RuntimeException("Email must be verified");
             }
@@ -255,7 +251,7 @@ public class AuthService {
         String refreshToken = jwtUtils.generateRefreshToken(authentication);
 
         List<String> roles = user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
-        return new JwtResponse(jwt, refreshToken, user.getId(), user.getUsername(), user.getEmail(), roles);
+        return new JwtResponse(jwt, refreshToken, user.getId(),user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl());
     }
 
     private String generateUniqueUsername(String baseUsername) {
@@ -283,8 +279,12 @@ public class AuthService {
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toList());
 
+        UserDetailsImpl userDetails = new UserDetailsImpl(
+                user.getId(), user.getUsername(), user.getEmail(), user.getPassword(),
+                authorities, user);
+
         Authentication authentication = new UsernamePasswordAuthenticationToken(
-                user.getUsername(), null, authorities);
+                userDetails, null, authorities);
 
         return getJwtResponse(user, authentication);
     }

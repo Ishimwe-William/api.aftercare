@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+
 import java.util.Map;
 
 @RestController
@@ -58,6 +59,8 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Forgot password failed for email: {}", request.getEmail(), e);
+            if (e.getMessage().contains("Email not found") || e.getMessage().contains("Invalid username or password"))
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new MessageResponse("Email not registered! Sign-up first."));
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new MessageResponse("Failed to send reset password email"));
         }

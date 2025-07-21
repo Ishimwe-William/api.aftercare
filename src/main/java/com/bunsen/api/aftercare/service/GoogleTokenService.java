@@ -5,6 +5,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.gson.GsonFactory;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +57,7 @@ public class GoogleTokenService {
     }
 
     @Getter
+    @AllArgsConstructor
     public static class GoogleUserInfo {
         private final String email;
         private final boolean emailVerified;
@@ -63,14 +65,5 @@ public class GoogleTokenService {
         private final String pictureUrl;
         private final String givenName;
         private final String familyName;
-
-        public GoogleUserInfo(String email, boolean emailVerified, String name, String pictureUrl, String givenName, String familyName) {
-            this.email = email;
-            this.emailVerified = emailVerified;
-            this.name = name;
-            this.pictureUrl = pictureUrl;
-            this.givenName = givenName;
-            this.familyName = familyName;
-        }
     }
 }

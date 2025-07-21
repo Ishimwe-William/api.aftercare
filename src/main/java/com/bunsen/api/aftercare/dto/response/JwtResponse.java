@@ -1,4 +1,5 @@
 package com.bunsen.api.aftercare.dto.response;
+
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,15 +15,21 @@ public class JwtResponse {
     private String type = "Bearer";
     private Long id;
     private String username;
+    private String fullName;
+    private String photoUrl;
+    private String phoneNumber;
     private String email;
     private List<String> roles;
 
-    public JwtResponse(String accessToken, String refreshToken, Long id, String username, String email, List<String> roles) {
+    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl) {
         this.token = accessToken;
         this.refreshToken = refreshToken;
         this.id = id;
         this.username = username;
         this.email = email;
         this.roles = roles;
+        this.phoneNumber = phoneNumber;
+        this.photoUrl = photoUrl;
+        this.fullName = fullName;
     }
 }
