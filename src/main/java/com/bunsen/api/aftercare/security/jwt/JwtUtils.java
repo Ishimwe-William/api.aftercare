@@ -25,6 +25,9 @@ public class JwtUtils {
     @Value("${aftercare.app.jwtRefreshExpirationMs}")
     private int jwtRefreshExpirationMs;
 
+    @Value("${aftercare.app.verificationTokenExpirationMs}")
+    private int verificationTokenExpirationMs;
+
     public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
@@ -32,6 +35,16 @@ public class JwtUtils {
                 .subject(userPrincipal.getUsername())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtExpirationMs))
+                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), Jwts.SIG.HS512)
+                .compact();
+    }
+
+    public String generateVerificationToken(String username, String purpose) {
+        return Jwts.builder()
+                .subject(username)
+                .claim("purpose", purpose)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + verificationTokenExpirationMs))
                 .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), Jwts.SIG.HS512)
                 .compact();
     }
@@ -46,13 +59,21 @@ public class JwtUtils {
                 .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), Jwts.SIG.HS512)
                 .compact();
     }
+
     public String getUserNameFromJwtToken(String token) {
+        return getClaimsFromJwtToken(token).getSubject();
+    }
+
+    public String getPurposeFromJwtToken(String token) {
+        return getClaimsFromJwtToken(token).get("purpose", String.class);
+    }
+
+    public Claims getClaimsFromJwtToken(String token) {
         return Jwts.parser()
                 .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
                 .build()
                 .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
+                .getPayload();
     }
 
     public boolean validateJwtToken(String authToken) {
@@ -77,11 +98,10 @@ public class JwtUtils {
     }
 
     public String generatePasswordResetToken(String username) {
-        return Jwts.builder()
-                .subject(username)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 15 * 60 * 1000)) // 15 min expiry
-                .signWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()), Jwts.SIG.HS512)
-                .compact();
+        return generateVerificationToken(username, "password_reset");
+    }
+
+    public String generateEmailVerificationToken(String username) {
+        return generateVerificationToken(username, "email_verification");
     }
 }

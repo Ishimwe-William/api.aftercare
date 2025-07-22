@@ -53,6 +53,8 @@ public class GoogleTokenService {
         String givenName = (String) payload.get("given_name");
         String familyName = (String) payload.get("family_name");
 
+        logger.debug(pictureUrl);
+
         return new GoogleUserInfo(email, emailVerified, name, pictureUrl, givenName, familyName);
     }
 

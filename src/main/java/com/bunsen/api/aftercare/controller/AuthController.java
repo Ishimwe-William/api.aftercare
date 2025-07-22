@@ -43,12 +43,24 @@ public class AuthController {
     @PostMapping({"/register"})
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
         try {
-            MessageResponse response = authService.registerUser(signupRequest);
-            return ResponseEntity.ok(response);
+            MessageResponse messageResponse = authService.registerUser(signupRequest);
+            return ResponseEntity.ok(messageResponse);
         } catch (Exception e) {
             logger.error("Registration failed for user: {}", signupRequest.getUsername(), e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new MessageResponse("Registration failed"));
+        }
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam("token") String token) {
+        try {
+            JwtResponse jwtResponse = authService.verifyEmail(token);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (Exception e) {
+            logger.error("Email verification failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new MessageResponse("Email verification failed"));
         }
     }
 
@@ -59,8 +71,6 @@ public class AuthController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Forgot password failed for email: {}", request.getEmail(), e);
-            if (e.getMessage().contains("Email not found") || e.getMessage().contains("Invalid username or password"))
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new MessageResponse("Email not registered! Sign-up first."));
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(new MessageResponse("Failed to send reset password email"));
         }
@@ -98,16 +108,13 @@ public class AuthController {
 
     @PostMapping("/google")
     public ResponseEntity<?> authenticateWithGoogle(@RequestBody Map<String, String> payload) {
-        String idToken = payload.get("idToken");  // Changed from accessToken
+        String idToken = payload.get("idToken");
 
         if (idToken == null || idToken.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(new MessageResponse("Google ID token is required"));
         }
 
         try {
-            logger.info("Attempting Google authentication with token: {}",
-                    idToken.substring(0, Math.min(10, idToken.length())) + "...");
-
             JwtResponse jwtResponse = authService.authenticateWithGoogle(idToken);
             return ResponseEntity.ok(jwtResponse);
         } catch (Exception e) {
@@ -116,7 +123,6 @@ public class AuthController {
                     e.getMessage(),
                     e.getCause() != null ? e.getCause().getMessage() : "No cause",
                     e);
-
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new MessageResponse("Google authentication failed"));
         }

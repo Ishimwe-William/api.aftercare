@@ -10,7 +10,6 @@ import java.util.Set;
 
 @Data
 public class SignupRequest {
-    @NotBlank
     @Size(min = 3, max = 20)
     private String username;
     @NotBlank
@@ -20,13 +19,14 @@ public class SignupRequest {
     @Size(max = 50)
     @Email
     private String email;
-    @Size(max = 100)
-    private String fullName;
+    @Size(max = 50)
+    private String firstName;
+    @Size(max = 50)
+    private String lastName;
+
     private String photoUrl;
     @Size(max = 15)
     private String phoneNumber;
-    @Size(max = 100)
-    private String companyName;
     @Size(max = 100)
     private String contactPerson;
     private Set<String> roles;

@@ -1,0 +1,31 @@
+graph TD
+    A[Start: User requests access] --> B[System: Prompt for credentials]
+    B --> C[User: Enter username and password]
+    C --> D[System: Verify credentials]
+    D -->|Invalid| E[System: Display error message]
+    E --> F{Retry attempts < limit?}
+    F -->|Yes| B
+    F -->|No| G[System: Lock account and notify user]
+    D -->|Valid| H{Is MFA enabled?}
+    H -->|Yes| I[System: Prompt for MFA input]
+    I --> J[User: Provide MFA input]
+    J --> K[System: Verify MFA input]
+    K -->|Invalid| L[System: Display MFA error]
+    L --> M{Retry attempts < limit?}
+    M -->|Yes| I
+    M -->|No| N[System: Deny access]
+    K -->|Valid| O[System: Grant access and issue session token]
+    H -->|No| O
+    O --> P[End: User accesses the system]
+
+    Q[User: Requests password reset] --> R[System: Prompt for username or email]
+    R --> S[User: Provide username or email]
+    S --> T[System: Verify if account exists]
+    T -->|Account not found| U[System: Display generic message]
+    T -->|Account found| V[System: Send reset link or code via email]
+    V --> W[User: Receives email and follows reset instructions]
+    W --> X[System: Verify reset token]
+    X -->|Invalid| Y[System: Display error]
+    X -->|Valid| Z[System: Allow user to set new password]
+    Z --> AA[User: Set new password]
+    AA --> AB[System: Update password and notify user]

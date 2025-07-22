@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -19,9 +20,10 @@ public class JwtResponse {
     private String photoUrl;
     private String phoneNumber;
     private String email;
+    private Date updatedAt;
     private List<String> roles;
 
-    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl) {
+    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl, Date updatedAt) {
         this.token = accessToken;
         this.refreshToken = refreshToken;
         this.id = id;
@@ -31,5 +33,6 @@ public class JwtResponse {
         this.phoneNumber = phoneNumber;
         this.photoUrl = photoUrl;
         this.fullName = fullName;
+        this.updatedAt = updatedAt;
     }
 }
