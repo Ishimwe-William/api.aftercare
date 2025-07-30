@@ -127,4 +127,25 @@ public class AuthController {
                     .body(new MessageResponse("Google authentication failed"));
         }
     }
+    @PostMapping("/web/google")
+    public ResponseEntity<?> authenticateWebWithGoogle(@RequestBody Map<String, String> payload) {
+        String code = payload.get("code");
+
+        if (code == null || code.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Authorization code is required"));
+        }
+
+        try {
+            JwtResponse jwtResponse = authService.authenticateWebWithGoogle(code);
+            return ResponseEntity.ok(jwtResponse);
+        } catch (Exception e) {
+            logger.error("Web Google authentication failed. Exception type: {}, Message: {}, Cause: {}",
+                    e.getClass().getSimpleName(),
+                    e.getMessage(),
+                    e.getCause() != null ? e.getCause().getMessage() : "No cause",
+                    e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new MessageResponse("Web Google authentication failed"));
+        }
+    }
 }

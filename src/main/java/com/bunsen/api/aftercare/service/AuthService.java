@@ -13,6 +13,7 @@ import com.bunsen.api.aftercare.repository.UserRepository;
 import com.bunsen.api.aftercare.security.jwt.JwtUtils;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.mail.MessagingException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import java.security.SecureRandom;
 
 import java.util.HashSet;
@@ -52,6 +60,15 @@ public class AuthService {
 
     @Value("${email.sender.resetPasswordUrl}")
     private String resetPasswordUrlBase;
+
+    @Value("${google.clientId}")
+    private String googleClientId;
+
+    @Value("${google.clientSecret}")
+    private String googleClientSecret;
+
+    @Value("${google.redirectUri}")
+    private String googleRedirectUri;
 
     public AuthService(AuthenticationManager authenticationManager, UserRepository userRepository,
                        RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
@@ -291,24 +308,24 @@ public class AuthService {
             GoogleIdToken.Payload payload = token.getPayload();
             GoogleTokenService.GoogleUserInfo userInfo = googleTokenService.getUserInfo(token);
 
-            String email =userInfo.getEmail();
+            String email = userInfo.getEmail();
             String name = (String) payload.get("name");
 
             // Check if user already exists
             Optional<User> existingUser = userRepository.findByEmail(email);
 
             if (existingUser.isPresent()) {
-                if(existingUser.get().getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
+                if (existingUser.get().getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
                     existingUser.get().setPhotoUrl(userInfo.getPictureUrl());
                     userRepository.save(existingUser.get());
                     logger.info("Updated user photo url for user: {}", existingUser.get().getUsername());
                 }
-                if(!existingUser.get().getFullName().equalsIgnoreCase(name)) {
+                if (!existingUser.get().getFullName().equalsIgnoreCase(name)) {
                     existingUser.get().setFullName(name);
                     userRepository.save(existingUser.get());
                     logger.info("Updated user full name for user: {}", existingUser.get().getUsername());
                 }
-                if(!existingUser.get().isEnabled()){
+                if (!existingUser.get().isEnabled()) {
                     existingUser.get().setEnabled(true);
                     userRepository.save(existingUser.get());
                     logger.info("Enabled user for user: {}", existingUser.get().getUsername());
@@ -347,6 +364,98 @@ public class AuthService {
             throw new RuntimeException("Invalid Google token", e);
         }
     }
+
+    @Transactional
+    public JwtResponse authenticateWebWithGoogle(String code) {
+        try {
+            // Step 1: Exchange the authorization code for tokens
+            String tokenUrl = "https://oauth2.googleapis.com/token";
+            MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
+            params.add("code", code);
+            params.add("client_id", googleClientId);
+            params.add("client_secret", googleClientSecret);
+            params.add("redirect_uri", googleRedirectUri);
+            params.add("grant_type", "authorization_code");
+
+            RestTemplate restTemplate = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED);
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(params, headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(tokenUrl, HttpMethod.POST, request, String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("Failed to exchange code for tokens: " + response.getStatusCode());
+            }
+
+            // Step 2: Extract the ID token from the response
+            JSONObject jsonResponse = new JSONObject(response.getBody());
+            String idToken = jsonResponse.getString("id_token");
+
+            // Step 3: Verify the ID token and get user information
+            GoogleIdToken googleIdToken = googleTokenService.verifyToken(idToken);
+            GoogleIdToken.Payload payload = googleIdToken.getPayload();
+            GoogleTokenService.GoogleUserInfo userInfo = googleTokenService.getUserInfo(googleIdToken);
+
+            // Step 4: Authenticate or create the user
+            String email = userInfo.getEmail();
+            String name = (String) payload.get("name");
+
+            Optional<User> existingUser = userRepository.findByEmail(email);
+            User user;
+
+            if (existingUser.isPresent()) {
+                user = existingUser.get();
+                // Update user info if necessary
+                if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
+                    user.setPhotoUrl(userInfo.getPictureUrl());
+                }
+                if (!user.getFullName().equalsIgnoreCase(name)) {
+                    user.setFullName(name);
+                }
+                if (!user.isEnabled()) {
+                    user.setEnabled(true);
+                }
+                userRepository.save(user);
+            } else {
+                user = new User();
+                user.setEmail(email);
+                user.setFullName(name);
+                user.setPhotoUrl(userInfo.getPictureUrl());
+                user.setEnabled(true);
+
+                // Generate a unique username within the size limit (0-20 characters)
+                String baseUsername = email.split("@")[0]; // Use local part of email
+                String username = baseUsername.length() > 20 ? baseUsername.substring(0, 20) : baseUsername;
+
+                // Ensure uniqueness
+                int counter = 1;
+                while (userRepository.findByUsername(username).isPresent()) {
+                    String suffix = counter > 9 ? String.valueOf(counter) : "0" + counter;
+                    username = (baseUsername.length() > 18 ? baseUsername.substring(0, 18) : baseUsername) + suffix;
+                    counter++;
+                }
+
+                user.setUsername(username);
+                // Assign default role
+                Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                        .orElseThrow(() -> new RuntimeException("Role not found"));
+                user.setRoles(Set.of(userRole));
+
+                // Set a random password
+                user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+                userRepository.save(user);
+            }
+
+            // Step 5: Generate and return JWT response
+            return generateJwtForUser(user);
+
+        } catch (Exception e) {
+            logger.error("Web Google authentication failed: {}", e.getMessage(), e);
+            throw new RuntimeException("Web Google authentication failed", e);
+        }
+    }
+
 
     private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
         User user = new User();
@@ -421,4 +530,5 @@ public class AuthService {
             sb.append(characters.charAt(index));
         }
         return sb.toString();
-    }}
+    }
+}
