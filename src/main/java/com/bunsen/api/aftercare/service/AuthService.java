@@ -33,6 +33,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+
 import java.security.SecureRandom;
 
 import java.util.HashSet;
@@ -54,6 +55,7 @@ public class AuthService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final GoogleTokenService googleTokenService;
+    private final DatabaseJwtBlacklistService databaseJwtBlacklistService;
 
     @Value("${email.sender.baseUrl}")
     private String baseUrl;
@@ -72,7 +74,7 @@ public class AuthService {
 
     public AuthService(AuthenticationManager authenticationManager, UserRepository userRepository,
                        RoleRepository roleRepository, PasswordEncoder encoder, JwtUtils jwtUtils,
-                       EmailService emailService, PasswordEncoder passwordEncoder, GoogleTokenService googleTokenService) {
+                       EmailService emailService, PasswordEncoder passwordEncoder, GoogleTokenService googleTokenService, DatabaseJwtBlacklistService databaseJwtBlacklistService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -81,6 +83,7 @@ public class AuthService {
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.googleTokenService = googleTokenService;
+        this.databaseJwtBlacklistService = databaseJwtBlacklistService;
     }
 
     public JwtResponse authenticateUser(LoginRequest loginRequest) {
@@ -530,5 +533,21 @@ public class AuthService {
             sb.append(characters.charAt(index));
         }
         return sb.toString();
+    }
+
+    public void logout(String token) {
+        logger.debug("Processing logout request");
+
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+
+        if (!jwtUtils.validateJwtToken(token)) {
+            logger.warn("Invalid token used for logout attempt");
+            throw new BadRequestException("Invalid token");
+        }
+
+        databaseJwtBlacklistService.blacklistToken(token);
+        logger.info("User logged out successfully");
     }
 }

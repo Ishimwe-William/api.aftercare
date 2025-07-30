@@ -1,5 +1,6 @@
 package com.bunsen.api.aftercare.security.jwt;
 
+import com.bunsen.api.aftercare.service.DatabaseJwtBlacklistService;
 import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -7,6 +8,7 @@ import io.jsonwebtoken.security.SignatureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +17,7 @@ import java.util.Date;
 @Component
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
+    private final DatabaseJwtBlacklistService databaseJwtBlacklistService;
 
     @Value("${aftercare.app.jwtSecret}")
     private String jwtSecret;
@@ -27,6 +30,10 @@ public class JwtUtils {
 
     @Value("${aftercare.app.verificationTokenExpirationMs}")
     private int verificationTokenExpirationMs;
+
+    public JwtUtils(@Lazy DatabaseJwtBlacklistService databaseJwtBlacklistService) {
+        this.databaseJwtBlacklistService = databaseJwtBlacklistService;
+    }
 
     public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
@@ -78,6 +85,12 @@ public class JwtUtils {
 
     public boolean validateJwtToken(String authToken) {
         try {
+
+            if (databaseJwtBlacklistService.isTokenBlacklisted(authToken)) {
+                logger.error("JWT token is blacklisted");
+                return false;
+            }
+
             Jwts.parser()
                     .verifyWith(Keys.hmacShaKeyFor(jwtSecret.getBytes()))
                     .build()

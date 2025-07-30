@@ -127,6 +127,7 @@ public class AuthController {
                     .body(new MessageResponse("Google authentication failed"));
         }
     }
+
     @PostMapping("/web/google")
     public ResponseEntity<?> authenticateWebWithGoogle(@RequestBody Map<String, String> payload) {
         String code = payload.get("code");
@@ -146,6 +147,23 @@ public class AuthController {
                     e);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new MessageResponse("Web Google authentication failed"));
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new MessageResponse("Invalid authorization header"));
+            }
+            String token = authHeader.substring(7);
+            authService.logout(token);
+            return ResponseEntity.ok(new MessageResponse("Logged out successfully"));
+        } catch (Exception e) {
+            logger.error("Logout failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new MessageResponse("Logout failed"));
         }
     }
 }
