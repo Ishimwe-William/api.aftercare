@@ -119,12 +119,36 @@ public class AuthService {
         logger.debug("Registering new user with input: {}", signupRequest);
         logger.debug("Attempting to register new user: {}", signupRequest.getEmail());
 
-        if (userRepository.existsByEmail(signupRequest.getEmail())) {
+        Optional<User> existingUser = userRepository.findByEmail(signupRequest.getEmail());
+        
+        if (existingUser.isPresent()) {
+            User user = existingUser.get();
+            if (!user.isEnabled()) {
+                // User exists but not verified, send new verification email
+                String verificationToken = jwtUtils.generateEmailVerificationToken(user.getUsername());
+                
+                String body = "Your email verification token is: \n\n"
+                        + verificationToken
+                        + "\n\nFollow this to verify your email address: \n\n"
+                        + "<a href='" + baseUrl + "auth/verify-email?token=" + verificationToken + "'>Verify Email</a>";
+
+                try {
+                    emailService.sendEmail(user.getEmail(), "Aftercare App", "Verify your email address", body);
+                    logger.info("New verification email sent to {}", user.getEmail());
+                    return new MessageResponse("A new verification email has been sent to your email address.");
+                } catch (MessagingException e) {
+                    logger.error("Error sending verification email to {}: {}", user.getEmail(), e.getMessage());
+                    throw new RuntimeException("Error sending verification email");
+                }
+            }
+            
             logger.debug("Registration failed: Email {} is already in use", signupRequest.getEmail());
             throw new BadRequestException("Error: Email is already in use!");
         }
 
+        // Rest of the existing registration logic...
         String baseUsername = (signupRequest.getFirstName() + signupRequest.getLastName()).toLowerCase();
+        // ... (rest of the method remains the same)
         String username = baseUsername;
         int counter = 1;
         while (userRepository.existsByUsername(username)) {
@@ -181,7 +205,7 @@ public class AuthService {
         String body = "Your email verification token is: \n\n"
                 + verificationToken
                 + "\n\nFollow this to verify your email address: \n\n"
-                + "<a href='" + baseUrl + "api/auth/verify-email?token=" + verificationToken + "'>Verify Email</a>";
+                + "<a href='" + baseUrl + "auth/verify-email?token=" + verificationToken + "'>Verify Email</a>";
 
         try {
             emailService.sendEmail(user.getEmail(), "Aftercare App", "Verify your email address", body);
