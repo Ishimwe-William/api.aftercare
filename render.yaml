@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: spring-demo-api
+    env: docker
+    buildCommand: "chmod +x mvnw || true"
+    dockerfilePath: Dockerfile
+    healthCheckPath: /api/tasks/ping
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: SPRING_DATASOURCE_URL
+        value: ${POSTGRES_URL}
+      - key: SPRING_DATASOURCE_USERNAME
+        value: ${POSTGRES_USER}
+      - key: SPRING_DATASOURCE_PASSWORD
+        value: ${POSTGRES_PASSWORD}
