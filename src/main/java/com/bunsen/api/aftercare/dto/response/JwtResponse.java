@@ -22,8 +22,10 @@ public class JwtResponse {
     private String email;
     private Date updatedAt;
     private List<String> roles;
+    private boolean passwordChangeRequired;
+    private boolean enabled;
 
-    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl, Date updatedAt) {
+    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl, Date updatedAt, boolean passwordChangeRequired, boolean enabled) {
         this.token = accessToken;
         this.refreshToken = refreshToken;
         this.id = id;
@@ -34,5 +36,7 @@ public class JwtResponse {
         this.photoUrl = photoUrl;
         this.fullName = fullName;
         this.updatedAt = updatedAt;
+        this.passwordChangeRequired = passwordChangeRequired;
+        this.enabled = enabled;
     }
 }

@@ -107,7 +107,7 @@ public class AuthService {
                     .collect(Collectors.toList());
 
             logger.debug("User authenticated successfully: {}", userDetails.getUsername());
-            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl(), userDetails.getUser().getUpdatedAt());
+            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl(), userDetails.getUser().getUpdatedAt(), userDetails.getUser().isPasswordChangeRequired(), userDetails.getUser().isEnabled());
         } catch (Exception e) {
             logger.error("Authentication error for input {}: {}", loginRequest.getUsernameOrEmail(), e.getMessage());
             throw new BadRequestException("Invalid username or password");
@@ -520,7 +520,7 @@ public class AuthService {
         String refreshToken = jwtUtils.generateRefreshToken(authentication);
 
         List<String> roles = user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
-        return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt());
+        return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt(), user.isPasswordChangeRequired(), user.isEnabled());
     }
 
     private String generateUniqueUsername(String baseUsername) {

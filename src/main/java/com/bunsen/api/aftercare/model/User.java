@@ -1,4 +1,3 @@
-// User.java
 package com.bunsen.api.aftercare.model;
 
 import jakarta.persistence.*;
@@ -48,7 +47,10 @@ public class User {
     private String fullName;
     private String photoUrl;
     private String phoneNumber;
+    private String createdBy = "SELF";
     private boolean enabled = true;
+    @Column(name = "password_change_required")
+    private boolean passwordChangeRequired = false;
 
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_at", nullable = false, updatable = false)
