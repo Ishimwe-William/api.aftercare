@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: spring-demo-api
+    name: api.aftercare
     env: docker
     buildCommand: "chmod +x mvnw || true"
     dockerfilePath: Dockerfile
@@ -14,3 +14,4 @@ services:
         value: ${POSTGRES_USER}
       - key: SPRING_DATASOURCE_PASSWORD
         value: ${POSTGRES_PASSWORD}
+    runtime: docker
