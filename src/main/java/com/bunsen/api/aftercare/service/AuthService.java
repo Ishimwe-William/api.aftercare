@@ -162,6 +162,7 @@ public class AuthService {
         user.setPassword(encoder.encode(signupRequest.getPassword()));
         user.setFullName(signupRequest.getFirstName() + " " + signupRequest.getLastName());
         user.setEnabled(false);
+        user.setPasswordChangeRequired(false);
 
         Set<String> strRoles = signupRequest.getRoles();
         Set<Role> roles = new HashSet<>();
@@ -381,6 +382,7 @@ public class AuthService {
                     .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
             Set<Role> roles = new HashSet<>();
             roles.add(userRole);
+            user.setPasswordChangeRequired(false);
             user.setRoles(roles);
 
             userRepository.save(user);
@@ -468,7 +470,7 @@ public class AuthService {
                 Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
                         .orElseThrow(() -> new RuntimeException("Role not found"));
                 user.setRoles(Set.of(userRole));
-
+                user.setPasswordChangeRequired(false);
                 // Set a random password
                 user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
                 userRepository.save(user);
@@ -493,6 +495,7 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_CUSTOMER).orElseThrow()));
         user.setEnabled(true);
+        user.setPasswordChangeRequired(false);
 
         return userRepository.save(user);
     }
