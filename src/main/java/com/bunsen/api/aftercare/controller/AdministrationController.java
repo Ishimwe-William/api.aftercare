@@ -5,7 +5,6 @@ import com.bunsen.api.aftercare.dto.response.MessageResponse;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.service.AdministrationService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
