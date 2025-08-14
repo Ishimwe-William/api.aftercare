@@ -98,16 +98,26 @@ public class AuthService {
             );
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // Get user details and check status
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            User user = userDetails.getUser();
+
+            // Check if user is active (status should be true)
+            if (!user.isStatus()) {
+                logger.warn("Authentication attempt by inactive user: {}", userDetails.getUsername());
+                throw new BadRequestException("Account is inactive. Please contact support.");
+            }
+
             String jwt = jwtUtils.generateJwtToken(authentication);
             String refreshToken = jwtUtils.generateRefreshToken(authentication);
 
-            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
             List<String> roles = userDetails.getAuthorities().stream()
                     .map(GrantedAuthority::getAuthority)
                     .collect(Collectors.toList());
 
             logger.debug("User authenticated successfully: {}", userDetails.getUsername());
-            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl(), userDetails.getUser().getUpdatedAt(), userDetails.getUser().isPasswordChangeRequired(), userDetails.getUser().isEnabled());
+            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl(), userDetails.getUser().getUpdatedAt(), userDetails.getUser().isPasswordChangeRequired(), userDetails.getUser().isEnabled(), userDetails.getUser().isStatus());
         } catch (Exception e) {
             logger.error("Authentication error for input {}: {}", loginRequest.getUsernameOrEmail(), e.getMessage());
             throw new BadRequestException("Invalid username or password");
@@ -120,13 +130,13 @@ public class AuthService {
         logger.debug("Attempting to register new user: {}", signupRequest.getEmail());
 
         Optional<User> existingUser = userRepository.findByEmail(signupRequest.getEmail());
-        
+
         if (existingUser.isPresent()) {
             User user = existingUser.get();
             if (!user.isEnabled()) {
                 // User exists but not verified, send new verification email
                 String verificationToken = jwtUtils.generateEmailVerificationToken(user.getUsername());
-                
+
                 String body = "Your email verification token is: \n\n"
                         + verificationToken
                         + "\n\nFollow this to verify your email address: \n\n"
@@ -141,7 +151,7 @@ public class AuthService {
                     throw new RuntimeException("Error sending verification email");
                 }
             }
-            
+
             logger.debug("Registration failed: Email {} is already in use", signupRequest.getEmail());
             throw new BadRequestException("Error: Email is already in use!");
         }
@@ -163,6 +173,7 @@ public class AuthService {
         user.setFullName(signupRequest.getFirstName() + " " + signupRequest.getLastName());
         user.setEnabled(false);
         user.setPasswordChangeRequired(false);
+        user.setStatus(true); // Set status to true for new registrations
 
         Set<String> strRoles = signupRequest.getRoles();
         Set<Role> roles = new HashSet<>();
@@ -315,6 +326,11 @@ public class AuthService {
             throw new RuntimeException("User account is disabled");
         }
 
+        // Add status check
+        if (!user.isStatus()) {
+            throw new RuntimeException("User account is inactive");
+        }
+
         List<GrantedAuthority> authorities = user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toList());
@@ -343,22 +359,29 @@ public class AuthService {
             Optional<User> existingUser = userRepository.findByEmail(email);
 
             if (existingUser.isPresent()) {
-                if (existingUser.get().getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
-                    existingUser.get().setPhotoUrl(userInfo.getPictureUrl());
-                    userRepository.save(existingUser.get());
-                    logger.info("Updated user photo url for user: {}", existingUser.get().getUsername());
-                }
-                if (!existingUser.get().getFullName().equalsIgnoreCase(name)) {
-                    existingUser.get().setFullName(name);
-                    userRepository.save(existingUser.get());
-                    logger.info("Updated user full name for user: {}", existingUser.get().getUsername());
-                }
-                if (!existingUser.get().isEnabled()) {
-                    existingUser.get().setEnabled(true);
-                    userRepository.save(existingUser.get());
-                    logger.info("Enabled user for user: {}", existingUser.get().getUsername());
-                }
                 User user = existingUser.get();
+
+                // Check if user is active (status should be true)
+                if (!user.isStatus()) {
+                    logger.warn("Google authentication attempt by inactive user: {}", user.getUsername());
+                    throw new BadRequestException("Account is inactive. Please contact support.");
+                }
+
+                if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
+                    user.setPhotoUrl(userInfo.getPictureUrl());
+                    userRepository.save(user);
+                    logger.info("Updated user photo url for user: {}", user.getUsername());
+                }
+                if (!user.getFullName().equalsIgnoreCase(name)) {
+                    user.setFullName(name);
+                    userRepository.save(user);
+                    logger.info("Updated user full name for user: {}", user.getUsername());
+                }
+                if (!user.isEnabled()) {
+                    user.setEnabled(true);
+                    userRepository.save(user);
+                    logger.info("Enabled user for user: {}", user.getUsername());
+                }
                 return generateJwtForUser(user);
             }
 
@@ -384,6 +407,8 @@ public class AuthService {
             roles.add(userRole);
             user.setPasswordChangeRequired(false);
             user.setRoles(roles);
+            // Set status to true for new users (they are active by default)
+            user.setStatus(true);
 
             userRepository.save(user);
 
@@ -435,6 +460,13 @@ public class AuthService {
 
             if (existingUser.isPresent()) {
                 user = existingUser.get();
+
+                // Check if user is active (status should be true)
+                if (!user.isStatus()) {
+                    logger.warn("Web Google authentication attempt by inactive user: {}", user.getUsername());
+                    throw new BadRequestException("Account is inactive. Please contact support.");
+                }
+
                 // Update user info if necessary
                 if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
                     user.setPhotoUrl(userInfo.getPictureUrl());
@@ -452,6 +484,8 @@ public class AuthService {
                 user.setFullName(name);
                 user.setPhotoUrl(userInfo.getPictureUrl());
                 user.setEnabled(true);
+                // Set status to true for new users (they are active by default)
+                user.setStatus(true);
 
                 // Generate a unique username within the size limit (0-20 characters)
                 String baseUsername = email.split("@")[0]; // Use local part of email
@@ -485,7 +519,6 @@ public class AuthService {
         }
     }
 
-
     private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
         User user = new User();
         user.setEmail(userInfo.getEmail());
@@ -495,12 +528,20 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_CUSTOMER).orElseThrow()));
         user.setEnabled(true);
+        // Set status to true for new users (they are active by default)
+        user.setStatus(true);
         user.setPasswordChangeRequired(false);
 
         return userRepository.save(user);
     }
 
     private JwtResponse generateJwtForUser(User user) {
+        // Check if user is active before generating JWT
+        if (!user.isStatus()) {
+            logger.warn("JWT generation attempt for inactive user: {}", user.getUsername());
+            throw new BadRequestException("Account is inactive. Please contact support.");
+        }
+
         List<GrantedAuthority> authorities = user.getRoles().stream()
                 .map(role -> new SimpleGrantedAuthority(role.getName().name()))
                 .collect(Collectors.toList());
@@ -523,7 +564,7 @@ public class AuthService {
         String refreshToken = jwtUtils.generateRefreshToken(authentication);
 
         List<String> roles = user.getRoles().stream().map(role -> role.getName().name()).collect(Collectors.toList());
-        return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt(), user.isPasswordChangeRequired(), user.isEnabled());
+        return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt(), user.isPasswordChangeRequired(), user.isEnabled(), user.isStatus());
     }
 
     private String generateUniqueUsername(String baseUsername) {

@@ -49,6 +49,7 @@ public class User {
     private String phoneNumber;
     private String createdBy = "SELF";
     private boolean enabled = true;
+    private boolean status = true;
     @Column(name = "password_change_required")
     private boolean passwordChangeRequired = false;
 
