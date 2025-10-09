@@ -29,7 +29,7 @@ public class AdministrationController {
     }
 
     @GetMapping("/users/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+    public ResponseEntity<User> getUserById(@PathVariable String id) {
         return ResponseEntity.ok(administrationService.getUserById(id));
     }
 
@@ -39,19 +39,19 @@ public class AdministrationController {
     }
 
     @PutMapping("/users/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id,
+    public ResponseEntity<User> updateUser(@PathVariable String id,
                                          @Valid @RequestBody UserManagementRequest request) {
         return ResponseEntity.ok(administrationService.updateUser(id, request));
     }
 
     @DeleteMapping("/users/{id}")
-    public ResponseEntity<MessageResponse> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<MessageResponse> deleteUser(@PathVariable String id) {
         administrationService.deleteUser(id);
         return ResponseEntity.ok(new MessageResponse("User deleted successfully"));
     }
 
     @PutMapping("/users/{id}/toggle-status")
-    public ResponseEntity<User> toggleUserStatus(@PathVariable Long id) {
+    public ResponseEntity<User> toggleUserStatus(@PathVariable String id) {
         return ResponseEntity.ok(administrationService.toggleUserStatus(id));
     }
 }

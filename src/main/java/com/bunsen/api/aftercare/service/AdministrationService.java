@@ -34,11 +34,11 @@ public class AdministrationService {
         return userRepository.findAll();
     }
 
-    public User getUserById(Long id) {
+    public User getUserById(String id) {
         return userRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
     }
-    public User updateUser(Long id, UserManagementRequest request) {
+    public User updateUser(String id, UserManagementRequest request) {
         User user = getUserById(id);
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
@@ -55,12 +55,12 @@ public class AdministrationService {
         return userRepository.save(user);
     }
 
-    public void deleteUser(Long id) {
+    public void deleteUser(String id) {
         User user = getUserById(id);
         userRepository.delete(user);
     }
 
-    public User toggleUserStatus(Long id) {
+    public User toggleUserStatus(String id) {
         User user = getUserById(id);
         user.setEnabled(!user.isEnabled());
         return userRepository.save(user);
@@ -91,7 +91,7 @@ public class AdministrationService {
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() == null || request.getRoles().isEmpty()) {
             // If no roles provided, assign default ROLE_USER
-            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                 .orElseThrow(() -> new RuntimeException("Default role not found."));
             roles.add(userRole);
         } else {

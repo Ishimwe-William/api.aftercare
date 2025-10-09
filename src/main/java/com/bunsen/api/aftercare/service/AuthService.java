@@ -180,7 +180,7 @@ public class AuthService {
 
         if (strRoles == null || strRoles.isEmpty()) {
             logger.debug("Setting default CUSTOMER role for user: {}", username);
-            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                     .orElseThrow(() -> {
                         logger.error("Error: ROLE_CUSTOMER not found in database");
                         return new RuntimeException("Error: Role CUSTOMER is not found in database.");
@@ -200,7 +200,7 @@ public class AuthService {
                         roles.add(modRole);
                     }
                     default -> {
-                        Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                        Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
                         roles.add(userRole);
                     }
@@ -401,7 +401,7 @@ public class AuthService {
             user.setUsername(username);
 
             // Assign default role
-            Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                     .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
             Set<Role> roles = new HashSet<>();
             roles.add(userRole);
@@ -501,7 +501,7 @@ public class AuthService {
 
                 user.setUsername(username);
                 // Assign default role
-                Role userRole = roleRepository.findByName(ERole.ROLE_CUSTOMER)
+                Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                         .orElseThrow(() -> new RuntimeException("Role not found"));
                 user.setRoles(Set.of(userRole));
                 user.setPasswordChangeRequired(false);
@@ -526,7 +526,7 @@ public class AuthService {
         user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
         user.setPhotoUrl(userInfo.getPictureUrl());
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_CUSTOMER).orElseThrow()));
+        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_TECHNICIAN).orElseThrow()));
         user.setEnabled(true);
         // Set status to true for new users (they are active by default)
         user.setStatus(true);

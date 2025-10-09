@@ -1,41 +1,39 @@
 package com.bunsen.api.aftercare.model;
 
-import com.bunsen.api.aftercare.enums.EActivityAction;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "activity_logs")
+@Table(name = "activity_logs",
+        indexes = {
+                @Index(name = "idx_timestamp", columnList = "timestamp"),
+                @Index(name = "idx_user_id", columnList = "user_id")
+        })
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ActivityLog {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    @ManyToOne
+    @Column(name = "log_id", length = 36, nullable = false)
+    private String logId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
-
-    @Enumerated(EnumType.STRING)
-    @Column(length = 20)
-    private EActivityAction action; // e.g. "Completed task", "Scanned QR"
-
-    private String context; // task/bike/case/etc.
-
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date timestamp = new Date();
-
-    @Temporal(TemporalType.TIMESTAMP)
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Date createdAt;
+    @Column(name = "action", length = 100, nullable = false)
+    private String action;
+    @Column(name = "details", columnDefinition = "TEXT")
+    private String details;
+    @Column(name = "timestamp", nullable = false, updatable = false)
+    private LocalDateTime timestamp;
 
     @PrePersist
     protected void onCreate() {
-        createdAt = new Date();
+        if (timestamp == null) {
+            timestamp = LocalDateTime.now();
+        }
     }
 }

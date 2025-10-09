@@ -9,7 +9,7 @@ import java.util.Collection;
 
 public class UserDetailsImpl implements UserDetails {
     @Getter
-    private final Long id;
+    private final String id;
     private final String username;
     @Getter
     private final String email;
@@ -18,7 +18,7 @@ public class UserDetailsImpl implements UserDetails {
     @Getter
     private final User user;
 
-    public UserDetailsImpl(Long id, String username, String email, String password,
+    public UserDetailsImpl(String id, String username, String email, String password,
                            Collection<? extends GrantedAuthority> authorities, User user) {
         this.id = id;
         this.username = username;

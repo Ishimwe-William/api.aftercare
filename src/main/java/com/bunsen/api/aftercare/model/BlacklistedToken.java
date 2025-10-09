@@ -15,10 +15,8 @@ import java.time.LocalDateTime;
 public class BlacklistedToken {
     @Id
     private String tokenId;
-
     @Column(name = "blacklisted_at")
     private LocalDateTime blacklistedAt;
-
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 }

@@ -4,7 +4,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -14,19 +14,19 @@ public class JwtResponse {
     private String token;
     private String refreshToken;
     private String type = "Bearer";
-    private Long id;
+    private String id;
     private String username;
     private String fullName;
     private String photoUrl;
     private String phoneNumber;
     private String email;
-    private Date updatedAt;
+    private LocalDateTime updatedAt;
     private List<String> roles;
     private boolean passwordChangeRequired;
     private boolean enabled;
     private boolean status;
 
-    public JwtResponse(String accessToken, String refreshToken, Long id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl, Date updatedAt, boolean passwordChangeRequired, boolean enabled, boolean status) {
+    public JwtResponse(String accessToken, String refreshToken, String id, String fullName, String username, String email, List<String> roles, String phoneNumber, String photoUrl, LocalDateTime updatedAt, boolean passwordChangeRequired, boolean enabled, boolean status) {
         this.token = accessToken;
         this.refreshToken = refreshToken;
         this.id = id;
