@@ -20,6 +20,9 @@ public class EmailService {
     }
 
     public void sendEmail(String mailTo, String senderName, String subject, String body) throws MessagingException {
+        if (mailTo == null || mailTo.isBlank()) {
+            throw new IllegalArgumentException("Recipient email cannot be null or empty");
+        }
         String htmlBody = createHtmlBody(senderName, body);
         sendEmail(mailTo, subject, htmlBody);
     }

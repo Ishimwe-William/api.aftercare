@@ -17,7 +17,6 @@ import java.util.Date;
 @Service
 public class DatabaseJwtBlacklistService {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseJwtBlacklistService.class);
-
     private final BlacklistedTokenRepository repository;
     private final JwtUtils jwtUtils;
 
@@ -28,20 +27,18 @@ public class DatabaseJwtBlacklistService {
 
     public void blacklistToken(String token) {
         try {
-            // Generate a hash of the token to avoid storing the full token
             String tokenHash = DigestUtils.sha256Hex(token);
-
             Claims claims = jwtUtils.getClaimsFromJwtToken(token);
             Date expiration = claims.getExpiration();
-
             BlacklistedToken blacklistedToken = new BlacklistedToken();
             blacklistedToken.setTokenId(tokenHash);
             blacklistedToken.setBlacklistedAt(LocalDateTime.now());
             blacklistedToken.setExpiresAt(expiration.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime());
-
             repository.save(blacklistedToken);
+            logger.info("Token blacklisted successfully: {}", tokenHash);
         } catch (Exception e) {
-            logger.error("Failed to blacklist token in database: {}", e.getMessage());
+            logger.error("Failed to blacklist token: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to blacklist token", e);
         }
     }
 

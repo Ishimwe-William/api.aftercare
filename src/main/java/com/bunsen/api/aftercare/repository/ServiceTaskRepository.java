@@ -44,6 +44,8 @@ public interface ServiceTaskRepository extends JpaRepository<ServiceTask, String
                                                      @Param("endDate") LocalDateTime endDate,
                                                      Pageable pageable);
 
-    @Query("SELECT COALESCE(AVG(function('TIMESTAMPDIFF', 'HOUR', st.startedAt, st.completedAt)), 0) FROM ServiceTask st WHERE st.status = 'COMPLETED' AND st.startedAt IS NOT NULL AND st.completedAt IS NOT NULL")
+    @Query("SELECT AVG(TIMESTAMPDIFF(HOUR, st.createdAt, st.completedAt)) " +
+       "FROM ServiceTask st " +
+       "WHERE st.status = 'COMPLETED' AND st.completedAt IS NOT NULL")
     Double calculateAverageCompletionTimeInHours();
 }

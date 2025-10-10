@@ -19,16 +19,13 @@ import java.util.List;
 @Service
 public class GoogleTokenService {
     private static final Logger logger = LoggerFactory.getLogger(GoogleTokenService.class);
-
     @Value("#{'${google.oauth.client-ids}'.split(',')}")
     private List<String> clientIds;
-
     private final GoogleIdTokenVerifier verifier;
 
     public GoogleTokenService() {
         JsonFactory jsonFactory = new GsonFactory();
         NetHttpTransport transport = new NetHttpTransport();
-
         verifier = new GoogleIdTokenVerifier.Builder(transport, jsonFactory)
                 .setAudience(clientIds)
                 .build();
@@ -45,16 +42,13 @@ public class GoogleTokenService {
 
     public GoogleUserInfo getUserInfo(GoogleIdToken idToken) {
         GoogleIdToken.Payload payload = idToken.getPayload();
-
         String email = payload.getEmail();
         boolean emailVerified = payload.getEmailVerified();
         String name = (String) payload.get("name");
         String pictureUrl = (String) payload.get("picture");
         String givenName = (String) payload.get("given_name");
         String familyName = (String) payload.get("family_name");
-
-        logger.debug(pictureUrl);
-
+        logger.debug("Extracted picture URL: {}", pictureUrl);
         return new GoogleUserInfo(email, emailVerified, name, pictureUrl, givenName, familyName);
     }
 

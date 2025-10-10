@@ -158,7 +158,7 @@ public class AuthService {
 
         // Rest of the existing registration logic...
         String baseUsername = (signupRequest.getFirstName() + signupRequest.getLastName()).toLowerCase();
-        // ... (rest of the method remains the same)
+        // ... (the rest of the method remains the same)
         String username = baseUsername;
         int counter = 1;
         while (userRepository.existsByUsername(username)) {
