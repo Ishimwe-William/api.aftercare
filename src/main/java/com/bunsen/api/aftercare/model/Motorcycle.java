@@ -21,6 +21,8 @@ public class Motorcycle {
     private String qrCode;
     @Column(name = "model", length = 100, nullable = false)
     private String model;
+    @Column(name = "plate_number", length = 100)
+    private String plateNumber;
     @Column(name = "owner_name", length = 100)
     private String ownerName;
     @Column(name = "owner_phone", length = 20)

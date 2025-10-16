@@ -12,6 +12,7 @@ cache:
 test:
   stage: test
   image: openjdk:17-jdk-slim
+  image: openjdk:21-jdk-slim
   before_script:
     - apt-get update -qq && apt-get install -y -qq curl
     - curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.5/binaries/apache-maven-3.9.5-bin.tar.gz | tar xzf - -C /opt

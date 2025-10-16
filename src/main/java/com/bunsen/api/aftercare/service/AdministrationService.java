@@ -19,9 +19,9 @@ import java.util.Set;
 @Service
 public class AdministrationService {
     private final UserRepository userRepository;
-    
+
     private final RoleRepository roleRepository;
-    
+
     private final PasswordEncoder passwordEncoder;
 
     public AdministrationService(UserRepository userRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
@@ -36,22 +36,22 @@ public class AdministrationService {
 
     public User getUserById(String id) {
         return userRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
     }
     public User updateUser(String id, UserManagementRequest request) {
         User user = getUserById(id);
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setEnabled(request.isEnabled());
-        
+
         Set<Role> roles = new HashSet<>();
         request.getRoles().forEach(roleName -> {
             Role role = roleRepository.findByName(ERole.valueOf(roleName))
-                .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                    .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
             roles.add(role);
         });
         user.setRoles(roles);
-        
+
         return userRepository.save(user);
     }
 
@@ -82,24 +82,24 @@ public class AdministrationService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setEnabled(request.isEnabled());
-        
+
         // Set default password that must be changed on first login
         user.setPassword(passwordEncoder.encode("ChangeMe123!"));
         user.setPasswordChangeRequired(true);
-        
+
         // Handle roles
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() == null || request.getRoles().isEmpty()) {
             // If no roles provided, assign default ROLE_USER
             Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
-                .orElseThrow(() -> new RuntimeException("Default role not found."));
+                    .orElseThrow(() -> new RuntimeException("Default role not found."));
             roles.add(userRole);
         } else {
             request.getRoles().forEach(roleName -> {
                 try {
                     ERole roleEnum = ERole.valueOf(roleName);
                     Role role = roleRepository.findByName(roleEnum)
-                        .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                            .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
                     roles.add(role);
                 } catch (IllegalArgumentException e) {
                     throw new BadRequestException("Invalid role: " + roleName);
@@ -107,10 +107,14 @@ public class AdministrationService {
             });
         }
         user.setRoles(roles);
-        
+
         // Create audit fields
         user.setCreatedBy("SYSTEM");
-        
+
         return userRepository.save(user);
+    }
+
+    public List<User> getUsersByRole(ERole role) {
+        return userRepository.findByRole(role);
     }
 }

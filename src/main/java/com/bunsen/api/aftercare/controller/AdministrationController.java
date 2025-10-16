@@ -2,6 +2,8 @@ package com.bunsen.api.aftercare.controller;
 
 import com.bunsen.api.aftercare.dto.request.UserManagementRequest;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
+import com.bunsen.api.aftercare.enums.ERole;
+import com.bunsen.api.aftercare.exception.BadRequestException;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.service.AdministrationService;
 import jakarta.validation.Valid;
@@ -40,7 +42,7 @@ public class AdministrationController {
 
     @PutMapping("/users/{id}")
     public ResponseEntity<User> updateUser(@PathVariable String id,
-                                         @Valid @RequestBody UserManagementRequest request) {
+                                           @Valid @RequestBody UserManagementRequest request) {
         return ResponseEntity.ok(administrationService.updateUser(id, request));
     }
 
@@ -53,5 +55,16 @@ public class AdministrationController {
     @PutMapping("/users/{id}/toggle-status")
     public ResponseEntity<User> toggleUserStatus(@PathVariable String id) {
         return ResponseEntity.ok(administrationService.toggleUserStatus(id));
+    }
+
+    @GetMapping("/users/role/{role}")
+    public ResponseEntity<List<User>> getUsersByRole(@PathVariable String role) {
+        ERole eRole;
+        try {
+            eRole = ERole.valueOf("ROLE_" + role.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid role: " + role);
+        }
+        return ResponseEntity.ok(administrationService.getUsersByRole(eRole));
     }
 }

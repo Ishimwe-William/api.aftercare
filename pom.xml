@@ -27,7 +27,9 @@
 		<url/>
 	</scm>
 	<properties>
-		<java.version>17</java.version>
+		<java.version>21</java.version>
+		<!-- Explicit compiler release to ensure we build for Java 21 -->
+		<maven.compiler.release>21</maven.compiler.release>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -121,7 +123,10 @@
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.11.0</version>
 				<configuration>
+					<!-- Build with Java 21 -->
+					<release>${maven.compiler.release}</release>
 					<annotationProcessorPaths>
 						<path>
 							<groupId>org.projectlombok</groupId>
@@ -143,6 +148,9 @@
 				</configuration>
 			</plugin>
 		</plugins>
+		<!-- Optional: Toolchains configuration can be added to enforce a specific JDK on CI agents.
+		To use it, create a file ~/.m2/toolchains.xml on the build agent with a JDK 21 entry.
+		See https://maven.apache.org/plugins/maven-toolchains-plugin/ for details. -->
 	</build>
 
 </project>

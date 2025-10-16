@@ -1,0 +1,139 @@
+package com.bunsen.api.aftercare.controller;
+
+import com.bunsen.api.aftercare.dto.request.ServiceTaskRequest;
+import com.bunsen.api.aftercare.dto.request.TaskStatusUpdateRequest;
+import com.bunsen.api.aftercare.dto.response.MessageResponse;
+import com.bunsen.api.aftercare.dto.response.ServiceTaskResponse;
+import com.bunsen.api.aftercare.dto.response.TaskStatisticsResponse;
+import com.bunsen.api.aftercare.model.ServiceTask;
+import com.bunsen.api.aftercare.service.ServiceTaskService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@CrossOrigin(origins = "*", maxAge = 3600)
+@RestController
+@RequestMapping("/api/service-tasks")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+public class ServiceTaskController {
+
+    private final ServiceTaskService serviceTaskService;
+
+    public ServiceTaskController(ServiceTaskService serviceTaskService) {
+        this.serviceTaskService = serviceTaskService;
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<ServiceTaskResponse>> getAllTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(serviceTaskService.getAllTasks(pageable));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ServiceTaskResponse> getTaskById(@PathVariable String id) {
+        return ResponseEntity.ok(serviceTaskService.getTaskById(id));
+    }
+
+    @GetMapping("/technician/{technicianId}")
+    public ResponseEntity<List<ServiceTaskResponse>> getTasksByTechnician(
+            @PathVariable String technicianId) {
+        return ResponseEntity.ok(serviceTaskService.getTasksByTechnician(technicianId));
+    }
+
+    @GetMapping("/motorcycle/{motorcycleId}")
+    public ResponseEntity<List<ServiceTaskResponse>> getTasksByMotorcycle(
+            @PathVariable String motorcycleId) {
+        return ResponseEntity.ok(serviceTaskService.getTasksByMotorcycle(motorcycleId));
+    }
+
+    @GetMapping("/status/{status}")
+    public ResponseEntity<List<ServiceTaskResponse>> getTasksByStatus(
+            @PathVariable ServiceTask.TaskStatus status) {
+        return ResponseEntity.ok(serviceTaskService.getTasksByStatus(status));
+    }
+
+    @GetMapping("/technician/{technicianId}/status/{status}")
+    public ResponseEntity<List<ServiceTaskResponse>> getTasksByTechnicianAndStatus(
+            @PathVariable String technicianId,
+            @PathVariable ServiceTask.TaskStatus status) {
+        return ResponseEntity.ok(serviceTaskService.getTasksByTechnicianAndStatus(technicianId, status));
+    }
+
+    @GetMapping("/overdue")
+    public ResponseEntity<Page<ServiceTaskResponse>> getOverdueTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(serviceTaskService.getOverdueTasks(pageable));
+    }
+
+    @GetMapping("/completed")
+    public ResponseEntity<Page<ServiceTaskResponse>> getCompletedTasksBetween(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(serviceTaskService.getCompletedTasksBetween(startDate, endDate, pageable));
+    }
+
+    @GetMapping("/technician/{technicianId}/date-range")
+    public ResponseEntity<Page<ServiceTaskResponse>> getTechnicianTasksInDateRange(
+            @PathVariable String technicianId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(serviceTaskService.getTechnicianTasksInDateRange(
+                technicianId, startDate, endDate, pageable));
+    }
+
+    @GetMapping("/statistics")
+    public ResponseEntity<TaskStatisticsResponse> getTaskStatistics() {
+        return ResponseEntity.ok(serviceTaskService.getTaskStatistics());
+    }
+
+    @GetMapping("/technician/{technicianId}/completed-count")
+    public ResponseEntity<Long> getCompletedTaskCountByTechnician(@PathVariable String technicianId) {
+        return ResponseEntity.ok(serviceTaskService.getCompletedTaskCountByTechnician(technicianId));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceTaskResponse> createTask(@Valid @RequestBody ServiceTaskRequest request) {
+        return ResponseEntity.ok(serviceTaskService.createTask(request));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ServiceTaskResponse> updateTask(
+            @PathVariable String id,
+            @Valid @RequestBody ServiceTaskRequest request) {
+        return ResponseEntity.ok(serviceTaskService.updateTask(id, request));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ServiceTaskResponse> updateTaskStatus(
+            @PathVariable String id,
+            @Valid @RequestBody TaskStatusUpdateRequest request) {
+        return ResponseEntity.ok(serviceTaskService.updateTaskStatus(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<MessageResponse> deleteTask(@PathVariable String id) {
+        serviceTaskService.deleteTask(id);
+        return ResponseEntity.ok(new MessageResponse("Service task deleted successfully"));
+    }
+}
