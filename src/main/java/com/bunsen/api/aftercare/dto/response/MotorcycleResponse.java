@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MotorcycleResponse {
-    private String motorcycleId;
+    private String id;
     private String qrCode;
     private String model;
     private String plateNumber;
@@ -22,7 +22,7 @@ public class MotorcycleResponse {
     private String ownerPhone;
     private String ownerEmail;
     private Motorcycle.MotorcycleStatus status;
-    private LocalDate lastServiceDate;
+    private LocalDateTime lastServiceDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private Integer activeTasksCount;

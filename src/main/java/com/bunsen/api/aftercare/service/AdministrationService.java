@@ -1,9 +1,11 @@
 package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.request.UserManagementRequest;
+import com.bunsen.api.aftercare.dto.response.UserResponse;
 import com.bunsen.api.aftercare.enums.ERole;
-import com.bunsen.api.aftercare.exception.BadRequestException;
+import com.bunsen.api.aftercare.exception.DuplicateResourceException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
+import com.bunsen.api.aftercare.exception.ValidationException;
 import com.bunsen.api.aftercare.model.Role;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.repository.RoleRepository;
@@ -11,70 +13,134 @@ import com.bunsen.api.aftercare.repository.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class AdministrationService {
     private final UserRepository userRepository;
-
     private final RoleRepository roleRepository;
-
     private final PasswordEncoder passwordEncoder;
+    private final ActivityLogService activityLogService;
+    private final SystemService systemService;
 
-    public AdministrationService(UserRepository userRepository, RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
+    public AdministrationService(UserRepository userRepository,
+                                 RoleRepository roleRepository,
+                                 PasswordEncoder passwordEncoder,
+                                 ActivityLogService activityLogService,
+                                 SystemService systemService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.activityLogService = activityLogService;
+        this.systemService = systemService;
     }
 
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    // UPDATED: Return safe DTO
+    public List<UserResponse> getAllUsers() {
+        return userRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
-    public User getUserById(String id) {
-        return userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + id));
+    // UPDATED: Return safe DTO
+    public UserResponse getUserById(String id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        return mapToResponse(user);
     }
-    public User updateUser(String id, UserManagementRequest request) {
-        User user = getUserById(id);
+
+    // UPDATED: Return safe DTO
+    public UserResponse updateUser(String id, UserManagementRequest request, String updaterId) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+
+        // Validation check for username/email uniqueness upon update
+        if (!user.getUsername().equals(request.getUsername()) && userRepository.existsByUsername(request.getUsername())) {
+            throw new DuplicateResourceException("User", "username", request.getUsername());
+        }
+        if (!user.getEmail().equals(request.getEmail()) && userRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateResourceException("User", "email", request.getEmail());
+        }
+
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setEnabled(request.isEnabled());
 
         Set<Role> roles = new HashSet<>();
         request.getRoles().forEach(roleName -> {
-            Role role = roleRepository.findByName(ERole.valueOf(roleName))
-                    .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
-            roles.add(role);
+            try {
+                Role role = roleRepository.findByName(ERole.valueOf(roleName))
+                        .orElseThrow(() -> new ResourceNotFoundException("Role", "name", roleName));
+                roles.add(role);
+            } catch (IllegalArgumentException e) {
+                // Use ValidationException for invalid input like role name
+                throw new ValidationException("Invalid role name specified: " + roleName);
+            }
         });
         user.setRoles(roles);
 
-        return userRepository.save(user);
+        User updatedUser = userRepository.save(user);
+        activityLogService.createLog(updaterId, "USER_UPDATED",
+                String.format("User %s (%s) updated by admin.", updatedUser.getUsername(), updatedUser.getId()));
+
+        return mapToResponse(updatedUser);
     }
 
-    public void deleteUser(String id) {
-        User user = getUserById(id);
-        userRepository.delete(user);
-    }
-
-    public User toggleUserStatus(String id) {
-        User user = getUserById(id);
-        user.setEnabled(!user.isEnabled());
-        return userRepository.save(user);
-    }
-
-    public User createUser(@Valid UserManagementRequest request) {
-        // Validate if username already exists
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username is already taken");
+    public void deleteUser(String id, String deleterId) {
+        // CRITICAL SECURITY CHECK 1: Prevent self-deletion
+        if (id.equals(deleterId)) {
+            throw new ValidationException("Cannot delete your own user account.");
         }
 
-        // Validate if email already exists
+        // CRITICAL SECURITY CHECK 2: Prevent deletion of the SYSTEM user
+        if (systemService.isSystemUser(id)) {
+            throw new ValidationException("The SYSTEM user account cannot be deleted.");
+        }
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+
+        // Dependency Resolution: Reassign Logs
+        User systemUser = systemService.getSystemUser();
+
+        // Reassign all logs from the user being deleted to the SYSTEM_USER
+        int reassignCount = activityLogService.reassignLogs(user.getId(), systemUser.getId());
+
+        userRepository.delete(user);
+
+        // Log the number of reassigned records.
+        activityLogService.createLog(deleterId, "USER_DELETED",
+                String.format("User %s (%s) deleted by admin. Logs reassigned: %d.",
+                        user.getUsername(), user.getId(), reassignCount));
+    }
+
+    // UPDATED: Return safe DTO
+    public UserResponse toggleUserStatus(String id, String updater) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        user.setEnabled(!user.isEnabled());
+
+        User updatedUser = userRepository.save(user);
+        activityLogService.createLog(updater, "USER_STATUS_TOGGLED",
+                String.format("User %s (%s) status set to %s.", updatedUser.getUsername(), updatedUser.getId(), updatedUser.isEnabled()));
+
+        return mapToResponse(updatedUser);
+    }
+
+    // UPDATED: Return safe DTO
+    public UserResponse createUser(@Valid UserManagementRequest request, String creatorId) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new DuplicateResourceException("User", "username", request.getUsername());
+        }
+
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already in use");
+            throw new DuplicateResourceException("User", "email", request.getEmail());
         }
 
         // Create new user
@@ -82,39 +148,69 @@ public class AdministrationService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setEnabled(request.isEnabled());
-
-        // Set default password that must be changed on first login
         user.setPassword(passwordEncoder.encode("ChangeMe123!"));
         user.setPasswordChangeRequired(true);
 
-        // Handle roles
+        // Handle roles logic
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() == null || request.getRoles().isEmpty()) {
-            // If no roles provided, assign default ROLE_USER
-            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
-                    .orElseThrow(() -> new RuntimeException("Default role not found."));
-            roles.add(userRole);
+            // Assign a default role for general users if none is specified (e.g., ROLE_STAFF or ROLE_CUSTOMER)
+            // Assuming ROLE_STAFF for generic admin-created users, but adjust as needed.
+            Role defaultRole = roleRepository.findByName(ERole.ROLE_STAFF)
+                    .orElseThrow(() -> new ResourceNotFoundException("Default role ROLE_STAFF", "name", ERole.ROLE_STAFF.name()));
+            roles.add(defaultRole);
         } else {
             request.getRoles().forEach(roleName -> {
                 try {
                     ERole roleEnum = ERole.valueOf(roleName);
+                    // Crucial check: Prevent creating a Technician via the generic path
+                    if (roleEnum == ERole.ROLE_TECHNICIAN) {
+                        throw new ValidationException("Use the /api/technicians endpoint to create a user with the ROLE_TECHNICIAN role.");
+                    }
                     Role role = roleRepository.findByName(roleEnum)
-                            .orElseThrow(() -> new RuntimeException("Role not found: " + roleName));
+                            .orElseThrow(() -> new ResourceNotFoundException("Role", "name", roleName));
                     roles.add(role);
                 } catch (IllegalArgumentException e) {
-                    throw new BadRequestException("Invalid role: " + roleName);
+                    throw new ValidationException("Invalid role: " + roleName);
                 }
             });
         }
         user.setRoles(roles);
+        user.setCreatedBy(creatorId);
 
-        // Create audit fields
-        user.setCreatedBy("SYSTEM");
+        User savedUser = userRepository.save(user);
+        activityLogService.createLog(
+                creatorId, "USER_CREATED_ADMIN",
+                String.format("New user %s (%s) created by admin with roles %s.", savedUser.getUsername(), savedUser.getId(), roles.stream().map(r -> r.getName().name()).toList()));
 
-        return userRepository.save(user);
+        return mapToResponse(savedUser);
     }
 
-    public List<User> getUsersByRole(ERole role) {
-        return userRepository.findByRole(role);
+    // UPDATED: Return safe DTO
+    public List<UserResponse> getUsersByRole(ERole role) {
+        return userRepository.findByRole(role).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // Corrected mapToResponse to use Collectors.toSet() for the roles Set
+    private UserResponse mapToResponse(User user) {
+        Set<String> roleNames = user.getRoles().stream()
+                .map(role -> role.getName().name())
+                .collect(Collectors.toSet()); // CORRECTED TO COLLECTORS.TOSET()
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .photoUrl(user.getPhotoUrl())
+                .enabled(user.isEnabled())
+                .status(user.isStatus())
+                .roles(roleNames)
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
     }
 }

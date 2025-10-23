@@ -51,4 +51,16 @@ public class ActivityLogService {
     public List<Object[]> getMostCommonActions() {
         return activityLogRepository.findMostCommonActions();
     }
+
+    /**
+     * Reassigns all activity logs from one user to another.
+     * This method is critical for maintaining referential integrity during user deletion.
+     * * @param oldUserId The ID of the user being deleted.
+     * @param newUserId The ID of the new user (SYSTEM_USER) to inherit the logs.
+     * @return The number of records updated.
+     */
+    @Transactional // Required because the repository uses @Modifying
+    public int reassignLogs(String oldUserId, String newUserId) {
+        return activityLogRepository.reassignLogs(oldUserId, newUserId);
+    }
 }

@@ -1,26 +1,17 @@
 package com.bunsen.api.aftercare.exception;
 
-import lombok.Getter;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@Getter
-@ResponseStatus(HttpStatus.CONFLICT)
-public class DuplicateResourceException extends RuntimeException {
+public class DuplicateResourceException extends ApiException {
 
-    private String resourceName;
-    private String fieldName;
-    private Object fieldValue;
+    private static final String REASON = "DUPLICATE_RESOURCE";
 
     public DuplicateResourceException(String resourceName, String fieldName, Object fieldValue) {
-        super(String.format("%s already exists with %s: '%s'", resourceName, fieldName, fieldValue));
-        this.resourceName = resourceName;
-        this.fieldName = fieldName;
-        this.fieldValue = fieldValue;
+        super(HttpStatus.CONFLICT, REASON,
+                String.format("%s already exists with %s: '%s'. Please use a unique value.", resourceName, fieldName, fieldValue));
     }
 
     public DuplicateResourceException(String message) {
-        super(message);
+        super(HttpStatus.CONFLICT, REASON, message);
     }
-
 }

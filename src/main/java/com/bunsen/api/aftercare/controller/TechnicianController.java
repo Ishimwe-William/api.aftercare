@@ -7,9 +7,11 @@ import com.bunsen.api.aftercare.dto.response.MessageResponse;
 import com.bunsen.api.aftercare.dto.response.TechnicianResponse;
 import com.bunsen.api.aftercare.dto.response.TechnicianWorkloadResponse;
 import com.bunsen.api.aftercare.service.TechnicianService;
+import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -126,8 +128,10 @@ public class TechnicianController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<TechnicianResponse> createTechnician(
-            @Valid @RequestBody TechnicianRequest request) {
-        return ResponseEntity.ok(technicianService.createTechnician(request));
+            @Valid @RequestBody TechnicianRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String creatorId = principal.getId();
+        return ResponseEntity.ok(technicianService.createTechnician(request, creatorId));
     }
 
     /**
@@ -138,8 +142,10 @@ public class TechnicianController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<TechnicianResponse> updateTechnician(
             @PathVariable String id,
-            @Valid @RequestBody TechnicianUpdateRequest request) {
-        return ResponseEntity.ok(technicianService.updateTechnician(id, request));
+            @Valid @RequestBody TechnicianUpdateRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updatorId = principal.getId();
+        return ResponseEntity.ok(technicianService.updateTechnician(id, request, updatorId));
     }
 
     /**
@@ -148,8 +154,10 @@ public class TechnicianController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MessageResponse> deleteTechnician(@PathVariable String id) {
-        technicianService.deleteTechnician(id);
+    public ResponseEntity<MessageResponse> deleteTechnician(@PathVariable String id,
+                                                            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updatorId = principal.getId();
+        technicianService.deleteTechnician(id, updatorId);
         return ResponseEntity.ok(new MessageResponse("Technician deleted successfully"));
     }
 
@@ -159,7 +167,9 @@ public class TechnicianController {
      */
     @PatchMapping("/{id}/toggle-status")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<TechnicianResponse> toggleTechnicianStatus(@PathVariable String id) {
-        return ResponseEntity.ok(technicianService.toggleTechnicianStatus(id));
+    public ResponseEntity<TechnicianResponse> toggleTechnicianStatus(@PathVariable String id,
+                                                                     @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updatorId = principal.getId();
+        return ResponseEntity.ok(technicianService.toggleTechnicianStatus(id, updatorId));
     }
 }

@@ -7,12 +7,15 @@ import com.bunsen.api.aftercare.dto.response.MotorcycleResponse;
 import com.bunsen.api.aftercare.dto.response.MotorcycleStatisticsResponse;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.service.MotorcycleService;
+import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -89,30 +92,39 @@ public class MotorcycleController {
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MotorcycleResponse> createMotorcycle(
-            @Valid @RequestBody MotorcycleRequest request) {
-        return ResponseEntity.ok(motorcycleService.createMotorcycle(request));
+            @Valid @RequestBody MotorcycleRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String creatorId = principal.getId();
+        MotorcycleResponse response = motorcycleService.createMotorcycle(request, creatorId);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MotorcycleResponse> updateMotorcycle(
             @PathVariable String id,
-            @Valid @RequestBody MotorcycleRequest request) {
-        return ResponseEntity.ok(motorcycleService.updateMotorcycle(id, request));
+            @Valid @RequestBody MotorcycleRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updaterId = principal.getId();
+        return ResponseEntity.ok(motorcycleService.updateMotorcycle(id, request, updaterId));
     }
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MotorcycleResponse> updateMotorcycleStatus(
             @PathVariable String id,
-            @Valid @RequestBody MotorcycleStatusUpdateRequest request) {
-        return ResponseEntity.ok(motorcycleService.updateMotorcycleStatus(id, request));
+            @Valid @RequestBody MotorcycleStatusUpdateRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updaterId = principal.getId();
+        return ResponseEntity.ok(motorcycleService.updateMotorcycleStatus(id, request, updaterId));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MessageResponse> deleteMotorcycle(@PathVariable String id) {
-        motorcycleService.deleteMotorcycle(id);
+    public ResponseEntity<MessageResponse> deleteMotorcycle(@PathVariable String id,
+                                                            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String deleterId = principal.getId();
+        motorcycleService.deleteMotorcycle(id, deleterId);
         return ResponseEntity.ok(new MessageResponse("Motorcycle deleted successfully"));
     }
 }

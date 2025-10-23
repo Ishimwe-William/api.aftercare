@@ -1,11 +1,12 @@
 package com.bunsen.api.aftercare.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.BAD_REQUEST)
-public class ValidationException extends RuntimeException {
+public class ValidationException extends ApiException {
+
+    private static final String REASON = "VALIDATION_FAILED";
+
     public ValidationException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, REASON, "Validation failed: " + message);
     }
 }

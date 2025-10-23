@@ -7,12 +7,8 @@ import com.bunsen.api.aftercare.dto.request.SignupRequest;
 import com.bunsen.api.aftercare.dto.response.JwtResponse;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
 import com.bunsen.api.aftercare.service.AuthService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
 import jakarta.validation.Valid;
 
 import java.util.Map;
@@ -20,8 +16,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
-
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
@@ -29,63 +23,34 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        try {
-            JwtResponse jwtResponse = authService.authenticateUser(loginRequest);
-            return ResponseEntity.ok(jwtResponse);
-        } catch (Exception e) {
-            logger.error("Login failed for user: {}", loginRequest.getUsernameOrEmail(), e);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new MessageResponse("Invalid credentials"));
-        }
+    public ResponseEntity<JwtResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        JwtResponse jwtResponse = authService.authenticateUser(loginRequest);
+        return ResponseEntity.ok(jwtResponse); // HTTP 200 OK
     }
 
     @PostMapping({"/register"})
-    public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
-        try {
-            MessageResponse messageResponse = authService.registerUser(signupRequest);
-            return ResponseEntity.ok(messageResponse);
-        } catch (Exception e) {
-            logger.error("Registration failed for user: {}", signupRequest.getUsername(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse("Registration failed"));
-        }
+    public ResponseEntity<MessageResponse> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
+        MessageResponse messageResponse = authService.registerUser(signupRequest);
+        return ResponseEntity.ok(messageResponse); // HTTP 200 OK
     }
 
     @PostMapping("/verify-email")
-    public ResponseEntity<?> verifyEmail(@RequestParam("token") String token) {
-        try {
-            JwtResponse jwtResponse = authService.verifyEmail(token);
-            return ResponseEntity.ok(jwtResponse);
-        } catch (Exception e) {
-            logger.error("Email verification failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse("Email verification failed"));
-        }
+    public ResponseEntity<JwtResponse> verifyEmail(@RequestParam("token") String token) {
+        JwtResponse jwtResponse = authService.verifyEmail(token);
+        return ResponseEntity.ok(jwtResponse); // HTTP 200 OK
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        try {
-            MessageResponse response = authService.sendPasswordResetToken(request.getEmail());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Forgot password failed for email: {}", request.getEmail(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse("Failed to send reset password email"));
-        }
+    public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        MessageResponse response = authService.sendPasswordResetToken(request.getEmail());
+        // Return 200 OK even if email is not found to prevent user enumeration
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        try {
-            MessageResponse response = authService.resetPassword(request.getToken(), request.getNewPassword());
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Reset password failed for token: {}", request.getToken(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse("Failed to reset password"));
-        }
+    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        MessageResponse response = authService.resetPassword(request.getToken(), request.getNewPassword());
+        return ResponseEntity.ok(response); // HTTP 200 OK
     }
 
     @PostMapping("/refresh")
@@ -93,17 +58,12 @@ public class AuthController {
         String refreshToken = request.get("refreshToken");
 
         if (refreshToken == null || refreshToken.trim().isEmpty()) {
+            // Retaining explicit validation for required input fields (DRY violation is minor here)
             return ResponseEntity.badRequest().body(new MessageResponse("Refresh token is required"));
         }
 
-        try {
-            JwtResponse jwtResponse = authService.refreshToken(refreshToken);
-            return ResponseEntity.ok(jwtResponse);
-        } catch (Exception e) {
-            logger.error("Token refresh failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new MessageResponse("Token refresh failed"));
-        }
+        JwtResponse jwtResponse = authService.refreshToken(refreshToken);
+        return ResponseEntity.ok(jwtResponse); // HTTP 200 OK
     }
 
     @PostMapping("/google")
@@ -111,21 +71,12 @@ public class AuthController {
         String idToken = payload.get("idToken");
 
         if (idToken == null || idToken.trim().isEmpty()) {
+            // Retaining explicit validation
             return ResponseEntity.badRequest().body(new MessageResponse("Google ID token is required"));
         }
 
-        try {
-            JwtResponse jwtResponse = authService.authenticateWithGoogle(idToken);
-            return ResponseEntity.ok(jwtResponse);
-        } catch (Exception e) {
-            logger.error("Google authentication failed. Exception type: {}, Message: {}, Cause: {}",
-                    e.getClass().getSimpleName(),
-                    e.getMessage(),
-                    e.getCause() != null ? e.getCause().getMessage() : "No cause",
-                    e);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new MessageResponse("Google authentication failed"));
-        }
+        JwtResponse jwtResponse = authService.authenticateWithGoogle(idToken);
+        return ResponseEntity.ok(jwtResponse); // HTTP 200 OK
     }
 
     @PostMapping("/web/google")
@@ -133,37 +84,23 @@ public class AuthController {
         String code = payload.get("code");
 
         if (code == null || code.trim().isEmpty()) {
+            // Retaining explicit validation
             return ResponseEntity.badRequest().body(new MessageResponse("Authorization code is required"));
         }
 
-        try {
-            JwtResponse jwtResponse = authService.authenticateWebWithGoogle(code);
-            return ResponseEntity.ok(jwtResponse);
-        } catch (Exception e) {
-            logger.error("Web Google authentication failed. Exception type: {}, Message: {}, Cause: {}",
-                    e.getClass().getSimpleName(),
-                    e.getMessage(),
-                    e.getCause() != null ? e.getCause().getMessage() : "No cause",
-                    e);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(new MessageResponse("Web Google authentication failed"));
-        }
+        JwtResponse jwtResponse = authService.authenticateWebWithGoogle(code);
+        return ResponseEntity.ok(jwtResponse); // HTTP 200 OK
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {
-        try {
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new MessageResponse("Invalid authorization header"));
-            }
-            String token = authHeader.substring(7);
-            authService.logout(token);
-            return ResponseEntity.ok(new MessageResponse("Logged out successfully"));
-        } catch (Exception e) {
-            logger.error("Logout failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new MessageResponse("Logout failed"));
+    public ResponseEntity<MessageResponse> logout(@RequestHeader("Authorization") String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            // Retaining explicit validation
+            return ResponseEntity.badRequest().body(new MessageResponse("Invalid authorization header"));
         }
+
+        String token = authHeader.substring(7);
+        authService.logout(token);
+        return ResponseEntity.ok(new MessageResponse("Logged out successfully")); // HTTP 200 OK
     }
 }

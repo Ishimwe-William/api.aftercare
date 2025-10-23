@@ -6,6 +6,7 @@ import com.bunsen.api.aftercare.dto.response.JwtResponse;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
 import com.bunsen.api.aftercare.enums.ERole;
 import com.bunsen.api.aftercare.exception.BadRequestException;
+import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.model.Role;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.repository.RoleRepository;
@@ -117,7 +118,21 @@ public class AuthService {
                     .collect(Collectors.toList());
 
             logger.debug("User authenticated successfully: {}", userDetails.getUsername());
-            return new JwtResponse(jwt, refreshToken, userDetails.getId(), userDetails.getUser().getFullName(), userDetails.getUsername(), userDetails.getEmail(), roles, userDetails.getUser().getPhoneNumber(), userDetails.getUser().getPhotoUrl(), userDetails.getUser().getUpdatedAt(), userDetails.getUser().isPasswordChangeRequired(), userDetails.getUser().isEnabled(), userDetails.getUser().isStatus());
+            return new JwtResponse(
+                    jwt,
+                    refreshToken,
+                    userDetails.getId(),
+                    userDetails.getUser().getFullName(),
+                    userDetails.getUsername(),
+                    userDetails.getEmail(),
+                    roles,
+                    userDetails.getUser().getPhoneNumber(),
+                    userDetails.getUser().getPhotoUrl(),
+                    userDetails.getUser().getUpdatedAt(),
+                    userDetails.getUser().isPasswordChangeRequired(),
+                    userDetails.getUser().isEnabled(),
+                    userDetails.getUser().isStatus()
+            );
         } catch (Exception e) {
             logger.error("Authentication error for input {}: {}", loginRequest.getUsernameOrEmail(), e.getMessage());
             throw new BadRequestException("Invalid username or password");
@@ -158,7 +173,6 @@ public class AuthService {
 
         // Rest of the existing registration logic...
         String baseUsername = (signupRequest.getFirstName() + signupRequest.getLastName()).toLowerCase();
-        // ... (the rest of the method remains the same)
         String username = baseUsername;
         int counter = 1;
         while (userRepository.existsByUsername(username)) {
@@ -169,11 +183,12 @@ public class AuthService {
         User user = new User();
         user.setUsername(username);
         user.setEmail(signupRequest.getEmail());
+        user.setPhoneNumber(signupRequest.getPhoneNumber());
         user.setPassword(encoder.encode(signupRequest.getPassword()));
         user.setFullName(signupRequest.getFirstName() + " " + signupRequest.getLastName());
         user.setEnabled(false);
         user.setPasswordChangeRequired(false);
-        user.setStatus(true); // Set status to true for new registrations
+        user.setStatus(true);
 
         Set<String> strRoles = signupRequest.getRoles();
         Set<Role> roles = new HashSet<>();
@@ -244,7 +259,7 @@ public class AuthService {
 
         String username = jwtUtils.getUserNameFromJwtToken(token);
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User","Username",username));
 
         if (user.isEnabled()) {
             logger.info("Email already verified for user: {}", username);

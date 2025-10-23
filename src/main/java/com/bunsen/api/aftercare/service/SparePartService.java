@@ -6,12 +6,14 @@ import com.bunsen.api.aftercare.dto.request.StockAdjustmentRequest;
 import com.bunsen.api.aftercare.dto.response.PartUsageResponse;
 import com.bunsen.api.aftercare.dto.response.SparePartResponse;
 import com.bunsen.api.aftercare.dto.response.StockAlertResponse;
-import com.bunsen.api.aftercare.exception.LowStockException;
+import com.bunsen.api.aftercare.exception.LowStockException; // Use specific exception
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.ValidationException;
+import com.bunsen.api.aftercare.exception.DuplicateResourceException; // Use specific exception
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.model.SparePart;
 import com.bunsen.api.aftercare.model.TaskPartUsage;
+import com.bunsen.api.aftercare.model.embedded.SupplierInfo;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import com.bunsen.api.aftercare.repository.SparePartRepository;
 import com.bunsen.api.aftercare.repository.TaskPartUsageRepository;
@@ -37,32 +39,42 @@ public class SparePartService {
     private final SparePartRepository sparePartRepository;
     private final TaskPartUsageRepository taskPartUsageRepository;
     private final ServiceTaskRepository serviceTaskRepository;
+    private final ActivityLogService activityLogService; // Inject ActivityLogService
 
     private static final Logger log = LoggerFactory.getLogger(SparePartService.class);
 
     public SparePartService(SparePartRepository sparePartRepository,
                             TaskPartUsageRepository taskPartUsageRepository,
-                            ServiceTaskRepository serviceTaskRepository) {
+                            ServiceTaskRepository serviceTaskRepository,
+                            ActivityLogService activityLogService) {
         this.sparePartRepository = sparePartRepository;
         this.taskPartUsageRepository = taskPartUsageRepository;
         this.serviceTaskRepository = serviceTaskRepository;
+        this.activityLogService = activityLogService;
     }
 
     @Transactional
     public SparePart createSparePart(SparePart part) {
+        // Redundant as there is a createPart method, but updating for consistency
         if (part.getName() == null || part.getName().isBlank()) {
             throw new ValidationException("Part name is required");
         }
         if (part.getCost() == null || part.getCost().compareTo(BigDecimal.ZERO) <= 0) {
             throw new ValidationException("Valid cost is required");
         }
-        part.setPartId(UUID.randomUUID().toString());
+
+        sparePartRepository.findByName(part.getName()).ifPresent(p -> {
+            throw new DuplicateResourceException("SparePart", "name", part.getName());
+        });
+
+        part.setId(UUID.randomUUID().toString());
         return sparePartRepository.save(part);
     }
 
     @Transactional(readOnly = true)
     public SparePart getSparePartById(String partId) {
         return sparePartRepository.findById(partId)
+                // Use ResourceNotFoundException with full details
                 .orElseThrow(() -> new ResourceNotFoundException("SparePart", "partId", partId));
     }
 
@@ -70,11 +82,21 @@ public class SparePartService {
     public SparePart updateStock(String partId, int quantityChange) {
         SparePart part = getSparePartById(partId);
         int newQuantity = part.getQuantityAvailable() + quantityChange;
+
+        // Use LowStockException
         if (newQuantity < 0) {
             throw new LowStockException(part.getName(), part.getQuantityAvailable(), -quantityChange);
         }
+
+        int oldQuantity = part.getQuantityAvailable();
         part.setQuantityAvailable(newQuantity);
-        return sparePartRepository.save(part);
+
+        SparePart updatedPart = sparePartRepository.save(part);
+        activityLogService.createLog("SYSTEM", "STOCK_ADJUSTMENT",
+                String.format("Stock for part %s (%s) adjusted: %d -> %d. Change: %d.",
+                        part.getName(), part.getId(), oldQuantity, newQuantity, quantityChange));
+
+        return updatedPart;
     }
 
     @Transactional(readOnly = true)
@@ -125,22 +147,39 @@ public class SparePartService {
 
     @Transactional
     public SparePartResponse createPart(SparePartRequest request) {
+        // Use DuplicateResourceException
         sparePartRepository.findByName(request.getName()).ifPresent(part -> {
-            throw new RuntimeException("Spare part with name " + request.getName() + " already exists");
+            throw new DuplicateResourceException("SparePart", "name", request.getName());
         });
 
+        // Basic validation check (DRY from createSparePart if possible, but keeping here for clarity)
+        if (request.getName() == null || request.getName().isBlank()) {
+            throw new ValidationException("Part name is required");
+        }
+        if (request.getCost() == null || request.getCost().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValidationException("Valid cost is required");
+        }
+
         SparePart part = new SparePart();
-        part.setPartId(UUID.randomUUID().toString());
+        part.setId(UUID.randomUUID().toString());
         part.setName(request.getName());
         part.setDescription(request.getDescription());
         part.setQuantityAvailable(request.getQuantityAvailable() != null ? request.getQuantityAvailable() : 0);
         part.setCost(request.getCost());
-        part.setSupplierName(request.getSupplierName());
-        part.setSupplierContact(request.getSupplierContact());
+
+        SupplierInfo supplierInfo = new SupplierInfo();
+        supplierInfo.setName(request.getSupplierName());
+        supplierInfo.setContact(request.getSupplierContact());
+        part.setSupplier(supplierInfo);
+
         part.setLowStockThreshold(request.getLowStockThreshold() != null ? request.getLowStockThreshold() : 10);
 
         SparePart saved = sparePartRepository.save(part);
         log.info("Created spare part: {}", saved.getName());
+
+        activityLogService.createLog("SYSTEM", "PART_CREATED",
+                String.format("New spare part %s created with ID %s.", saved.getName(), saved.getId()));
+
         return mapToResponse(saved);
     }
 
@@ -153,8 +192,12 @@ public class SparePartService {
         part.setDescription(request.getDescription());
         part.setQuantityAvailable(request.getQuantityAvailable());
         part.setCost(request.getCost());
-        part.setSupplierName(request.getSupplierName());
-        part.setSupplierContact(request.getSupplierContact());
+
+        SupplierInfo supplierInfo = new SupplierInfo();
+        supplierInfo.setName(request.getSupplierName());
+        supplierInfo.setContact(request.getSupplierContact());
+        part.setSupplier(supplierInfo);
+
         part.setLowStockThreshold(request.getLowStockThreshold());
 
         SparePart updated = sparePartRepository.save(part);
@@ -165,51 +208,72 @@ public class SparePartService {
     @Transactional
     public SparePartResponse adjustStock(String id, StockAdjustmentRequest request) {
         SparePart part = sparePartRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Spare part not found with id: " + id));
+                // Use ResourceNotFoundException
+                .orElseThrow(() -> new ResourceNotFoundException("SparePart", "id", id));
 
         int newQuantity;
+        int oldQuantity = part.getQuantityAvailable();
+        String logAction;
+
         if ("ADD".equalsIgnoreCase(request.getAdjustmentType())) {
             newQuantity = part.getQuantityAvailable() + request.getQuantity();
+            logAction = "STOCK_ADDED";
         } else if ("SUBTRACT".equalsIgnoreCase(request.getAdjustmentType())) {
             newQuantity = part.getQuantityAvailable() - request.getQuantity();
+            // Use LowStockException
             if (newQuantity < 0) {
-                throw new RuntimeException("Insufficient stock. Available: " + part.getQuantityAvailable());
+                throw new LowStockException(part.getName(), part.getQuantityAvailable(), request.getQuantity());
             }
+            logAction = "STOCK_SUBTRACTED";
         } else {
-            throw new RuntimeException("Invalid adjustment type. Use ADD or SUBTRACT");
+            // Use ValidationException
+            throw new ValidationException("Invalid adjustment type. Use ADD or SUBTRACT");
         }
 
         part.setQuantityAvailable(newQuantity);
         SparePart updated = sparePartRepository.save(part);
         log.info("Adjusted stock for {}: {} -> {}", part.getName(),
-                part.getQuantityAvailable(), newQuantity);
+                oldQuantity, newQuantity);
+
+        activityLogService.createLog("SYSTEM", logAction,
+                String.format("Stock for part %s (%s) adjusted. Quantity changed by %d to %d.",
+                        part.getName(), part.getId(), request.getQuantity(), newQuantity));
+
         return mapToResponse(updated);
     }
 
     @Transactional
     public void deletePart(String id) {
         SparePart part = sparePartRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Spare part not found with id: " + id));
+                // Use ResourceNotFoundException
+                .orElseThrow(() -> new ResourceNotFoundException("SparePart", "id", id));
 
-        List<TaskPartUsage> usages = taskPartUsageRepository.findByPartPartId(id);
+        List<TaskPartUsage> usages = taskPartUsageRepository.findByPartId(id);
         if (!usages.isEmpty()) {
-            throw new RuntimeException("Cannot delete part with existing usage records");
+            // Use ValidationException (or a specific custom exception for constraints)
+            throw new ValidationException("Cannot delete part with existing usage records");
         }
 
         sparePartRepository.delete(part);
         log.info("Deleted spare part: {}", part.getName());
+
+        activityLogService.createLog("SYSTEM", "PART_DELETED",
+                String.format("Spare part %s (%s) deleted.", part.getName(), part.getId()));
     }
 
     @Transactional
     public PartUsageResponse logPartUsage(PartUsageRequest request) {
         SparePart part = sparePartRepository.findById(request.getPartId())
-                .orElseThrow(() -> new RuntimeException("Spare part not found"));
+                // Use ResourceNotFoundException
+                .orElseThrow(() -> new ResourceNotFoundException("SparePart", "id", request.getPartId()));
 
         ServiceTask task = serviceTaskRepository.findById(request.getTaskId())
-                .orElseThrow(() -> new RuntimeException("Service task not found"));
+                // Use ResourceNotFoundException
+                .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "id", request.getTaskId()));
 
+        // Use LowStockException
         if (part.getQuantityAvailable() < request.getQuantityUsed()) {
-            throw new RuntimeException("Insufficient stock. Available: " + part.getQuantityAvailable());
+            throw new LowStockException(part.getName(), part.getQuantityAvailable(), request.getQuantityUsed());
         }
 
         part.setQuantityAvailable(part.getQuantityAvailable() - request.getQuantityUsed());
@@ -224,19 +288,23 @@ public class SparePartService {
 
         TaskPartUsage saved = taskPartUsageRepository.save(usage);
         log.info("Logged usage: {} x {} for task {}", request.getQuantityUsed(),
-                part.getName(), task.getTaskId());
+                part.getName(), task.getId());
+
+        activityLogService.createLog(task.getTechnician().getId(), "PART_USED",
+                String.format("Used %d of part %s (%s) for task %s.",
+                        request.getQuantityUsed(), part.getName(), part.getId(), task.getId()));
 
         return mapUsageToResponse(saved);
     }
 
     public List<PartUsageResponse> getPartUsageHistory(String partId) {
-        return taskPartUsageRepository.findByPartPartId(partId).stream()
+        return taskPartUsageRepository.findByPartId(partId).stream()
                 .map(this::mapUsageToResponse)
                 .collect(Collectors.toList());
     }
 
     public List<PartUsageResponse> getTaskPartUsages(String taskId) {
-        return taskPartUsageRepository.findByTaskTaskId(taskId).stream()
+        return taskPartUsageRepository.findByTaskId(taskId).stream()
                 .map(this::mapUsageToResponse)
                 .collect(Collectors.toList());
     }
@@ -264,12 +332,12 @@ public class SparePartService {
                         part.getQuantityAvailable() <= part.getLowStockThreshold() ? "LOW_STOCK" : "NORMAL";
 
                 writer.printf("%s,%s,%s,%d,%s,%s,%d,%s%n",
-                        part.getPartId(),
+                        part.getId(),
                         escapeCSV(part.getName()),
                         escapeCSV(part.getDescription()),
                         part.getQuantityAvailable(),
                         part.getCost(),
-                        escapeCSV(part.getSupplierName()),
+                        escapeCSV(part.getSupplier().getName()),
                         part.getLowStockThreshold(),
                         status);
             }
@@ -290,16 +358,16 @@ public class SparePartService {
     }
 
     private SparePartResponse mapToResponse(SparePart part) {
-        Long totalUsed = taskPartUsageRepository.getTotalQuantityUsedForPart(part.getPartId());
+        Long totalUsed = taskPartUsageRepository.getTotalQuantityUsedForPart(part.getId());
 
         return SparePartResponse.builder()
-                .partId(part.getPartId())
+                .partId(part.getId())
                 .name(part.getName())
                 .description(part.getDescription())
                 .quantityAvailable(part.getQuantityAvailable())
                 .cost(part.getCost())
-                .supplierName(part.getSupplierName())
-                .supplierContact(part.getSupplierContact())
+                .supplierName(part.getSupplier().getName())
+                .supplierContact(part.getSupplier().getContact())
                 .lowStockThreshold(part.getLowStockThreshold())
                 .isLowStock(part.getQuantityAvailable() <= part.getLowStockThreshold())
                 .isOutOfStock(part.getQuantityAvailable() == 0)
@@ -312,8 +380,8 @@ public class SparePartService {
     private PartUsageResponse mapUsageToResponse(TaskPartUsage usage) {
         return PartUsageResponse.builder()
                 .usageId(usage.getUsageId())
-                .taskId(usage.getTask().getTaskId())
-                .partId(usage.getPart().getPartId())
+                .taskId(usage.getTask().getId())
+                .partId(usage.getPart().getId())
                 .partName(usage.getPart().getName())
                 .quantityUsed(usage.getQuantityUsed())
                 .notes(usage.getNotes())

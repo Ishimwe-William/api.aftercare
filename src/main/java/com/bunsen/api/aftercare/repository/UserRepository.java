@@ -2,7 +2,7 @@ package com.bunsen.api.aftercare.repository;
 
 import com.bunsen.api.aftercare.enums.ERole;
 import com.bunsen.api.aftercare.model.User;
-import org.springframework.data.jpa.repository.JpaRepository;
+import com.bunsen.api.aftercare.repository.base.BaseRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -11,7 +11,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, String> {
+public interface UserRepository extends BaseRepository<User, String> {
+
     Optional<User> findByUsername(String username);
 
     Optional<User> findByEmail(String email);

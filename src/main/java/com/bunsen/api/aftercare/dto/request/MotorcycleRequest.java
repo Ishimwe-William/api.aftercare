@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -37,7 +37,7 @@ public class MotorcycleRequest {
     @Size(max = 255, message = "Owner email must not exceed 255 characters")
     private String ownerEmail;
 
-    private LocalDate lastServiceDate;
+    private LocalDateTime lastServiceDate;
 }
 
 

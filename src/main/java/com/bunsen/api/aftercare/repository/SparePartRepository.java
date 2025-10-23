@@ -1,9 +1,10 @@
 package com.bunsen.api.aftercare.repository;
 
 import com.bunsen.api.aftercare.model.SparePart;
+import com.bunsen.api.aftercare.repository.base.BaseRepository;
+import com.bunsen.api.aftercare.repository.base.SearchableRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,7 +13,9 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface SparePartRepository extends JpaRepository<SparePart, String> {
+public interface SparePartRepository extends BaseRepository<SparePart, String>,
+        SearchableRepository<SparePart, String> {
+
     Optional<SparePart> findByName(String name);
 
     List<SparePart> findBySupplierName(String supplierName);

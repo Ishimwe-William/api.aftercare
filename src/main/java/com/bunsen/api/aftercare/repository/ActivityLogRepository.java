@@ -1,9 +1,11 @@
 package com.bunsen.api.aftercare.repository;
 
 import com.bunsen.api.aftercare.model.ActivityLog;
+import com.bunsen.api.aftercare.repository.base.TimestampedRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,8 +14,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface ActivityLogRepository extends JpaRepository<ActivityLog, String> {
+public interface ActivityLogRepository extends TimestampedRepository<ActivityLog, String> {
     List<ActivityLog> findByUserId(String userId);
+
+    // Custom query to update the user_id column for all logs created by the deleted user.
+    // NOTE: Requires @Modifying and @Transactional at the service level.
+    @Modifying
+    @Query("UPDATE ActivityLog a SET a.user.id = :newUserId WHERE a.user.id = :oldUserId")
+    int reassignLogs(String oldUserId, String newUserId);
 
     List<ActivityLog> findByAction(String action);
 

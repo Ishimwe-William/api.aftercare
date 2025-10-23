@@ -9,10 +9,10 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 @Data
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class TechnicianResponse {
+public class UserResponse {
     private String id;
     private String username;
     private String email;
@@ -22,9 +22,6 @@ public class TechnicianResponse {
     private boolean enabled;
     private boolean status;
     private Set<String> roles;
-    private Long activeTasks;
-    private Long completedTasks;
-    private Double averageCompletionTimeHours;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

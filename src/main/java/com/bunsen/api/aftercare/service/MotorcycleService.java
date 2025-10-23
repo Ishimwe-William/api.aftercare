@@ -1,4 +1,3 @@
-
 package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.request.MotorcycleRequest;
@@ -10,6 +9,7 @@ import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.ValidationException;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.model.ServiceTask;
+import com.bunsen.api.aftercare.model.embedded.OwnerInfo;
 import com.bunsen.api.aftercare.repository.MotorcycleRepository;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import org.slf4j.Logger;
@@ -32,23 +32,14 @@ public class MotorcycleService {
 
     private final MotorcycleRepository motorcycleRepository;
     private final ServiceTaskRepository serviceTaskRepository;
+    private final ActivityLogService activityLogService; // Inject ActivityLogService
 
     public MotorcycleService(MotorcycleRepository motorcycleRepository,
-                             ServiceTaskRepository serviceTaskRepository) {
+                             ServiceTaskRepository serviceTaskRepository,
+                             ActivityLogService activityLogService) {
         this.motorcycleRepository = motorcycleRepository;
         this.serviceTaskRepository = serviceTaskRepository;
-    }
-
-    @Transactional
-    public Motorcycle createMotorcycle(Motorcycle motorcycle) {
-        if (motorcycle.getQrCode() == null || motorcycle.getQrCode().isBlank()) {
-            throw new ValidationException("QR code is required");
-        }
-        if (motorcycleRepository.existsByQrCode(motorcycle.getQrCode())) {
-            throw new ValidationException("QR code already exists");
-        }
-        motorcycle.setMotorcycleId(UUID.randomUUID().toString());
-        return motorcycleRepository.save(motorcycle);
+        this.activityLogService = activityLogService;
     }
 
     @Transactional(readOnly = true)
@@ -57,39 +48,47 @@ public class MotorcycleService {
     }
 
     @Transactional
-    public MotorcycleResponse createMotorcycle(MotorcycleRequest request) {
+    public MotorcycleResponse createMotorcycle(MotorcycleRequest request, String creatorId) {
         logger.info("Creating new motorcycle with QR code: {}", request.getQrCode());
 
+        // Use DuplicateResourceException
         if (motorcycleRepository.existsByQrCode(request.getQrCode())) {
             throw new DuplicateResourceException("Motorcycle", "qrCode", request.getQrCode());
         }
 
         Motorcycle motorcycle = new Motorcycle();
-        motorcycle.setMotorcycleId(UUID.randomUUID().toString());
+        motorcycle.setId(UUID.randomUUID().toString());
         motorcycle.setQrCode(request.getQrCode());
         motorcycle.setModel(request.getModel());
         motorcycle.setPlateNumber(request.getPlateNumber());
-        motorcycle.setOwnerName(request.getOwnerName());
-        motorcycle.setOwnerPhone(request.getOwnerPhone());
-        motorcycle.setOwnerEmail(request.getOwnerEmail());
+        OwnerInfo ownerInfo = new OwnerInfo();
+        ownerInfo.setName(request.getOwnerName());
+        ownerInfo.setPhone(request.getOwnerPhone());
+        ownerInfo.setEmail(request.getOwnerEmail());
+        motorcycle.setOwner(ownerInfo);
         motorcycle.setLastServiceDate(request.getLastServiceDate());
         motorcycle.setStatus(Motorcycle.MotorcycleStatus.ACTIVE);
 
         Motorcycle savedMotorcycle = motorcycleRepository.save(motorcycle);
-        logger.info("Motorcycle created successfully with ID: {}", savedMotorcycle.getMotorcycleId());
+        logger.info("Motorcycle created successfully with ID: {}", savedMotorcycle.getId());
+
+        activityLogService.createLog(creatorId, "MOTORCYCLE_REGISTERED",
+                String.format("New motorcycle %s registered with QR code %s.", savedMotorcycle.getPlateNumber(), savedMotorcycle.getQrCode()));
 
         return mapToResponse(savedMotorcycle);
     }
 
     @Transactional(readOnly = true)
     public MotorcycleResponse getMotorcycleById(String motorcycleId) {
+        // Use ResourceNotFoundException with full details
         Motorcycle motorcycle = motorcycleRepository.findById(motorcycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "motorcycleId", motorcycleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", motorcycleId));
         return mapToResponse(motorcycle);
     }
 
     @Transactional(readOnly = true)
     public MotorcycleResponse getMotorcycleByQrCode(String qrCode) {
+        // Use ResourceNotFoundException with full details
         Motorcycle motorcycle = motorcycleRepository.findByQrCode(qrCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "qrCode", qrCode));
         return mapToResponse(motorcycle);
@@ -136,13 +135,14 @@ public class MotorcycleService {
     }
 
     @Transactional
-    public MotorcycleResponse updateMotorcycle(String motorcycleId, MotorcycleRequest request) {
+    public MotorcycleResponse updateMotorcycle(String motorcycleId, MotorcycleRequest request, String updaterId) {
         logger.info("Updating motorcycle: {}", motorcycleId);
 
         Motorcycle motorcycle = motorcycleRepository.findById(motorcycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "motorcycleId", motorcycleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", motorcycleId));
 
         if (!request.getQrCode().equals(motorcycle.getQrCode())) {
+            // Use DuplicateResourceException
             if (motorcycleRepository.existsByQrCode(request.getQrCode())) {
                 throw new DuplicateResourceException("Motorcycle", "qrCode", request.getQrCode());
             }
@@ -151,52 +151,66 @@ public class MotorcycleService {
 
         motorcycle.setModel(request.getModel());
         motorcycle.setPlateNumber(request.getPlateNumber());
-        motorcycle.setOwnerName(request.getOwnerName());
-        motorcycle.setOwnerPhone(request.getOwnerPhone());
-        motorcycle.setOwnerEmail(request.getOwnerEmail());
+        OwnerInfo ownerInfo = new OwnerInfo();
+        ownerInfo.setName(request.getOwnerName());
+        ownerInfo.setPhone(request.getOwnerPhone());
+        ownerInfo.setEmail(request.getOwnerEmail());
+        motorcycle.setOwner(ownerInfo);
         motorcycle.setLastServiceDate(request.getLastServiceDate());
 
         Motorcycle updatedMotorcycle = motorcycleRepository.save(motorcycle);
         logger.info("Motorcycle updated successfully: {}", motorcycleId);
+
+        activityLogService.createLog(updaterId, "MOTORCYCLE_UPDATED",
+                String.format("Motorcycle %s details updated.", updatedMotorcycle.getPlateNumber()));
 
         return mapToResponse(updatedMotorcycle);
     }
 
     @Transactional
     public MotorcycleResponse updateMotorcycleStatus(String motorcycleId,
-                                                     MotorcycleStatusUpdateRequest request) {
+                                                     MotorcycleStatusUpdateRequest request, String updaterId) {
         logger.info("Updating motorcycle status for: {} to {}", motorcycleId, request.getStatus());
 
         Motorcycle motorcycle = motorcycleRepository.findById(motorcycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "motorcycleId", motorcycleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", motorcycleId));
 
+        Motorcycle.MotorcycleStatus oldStatus = motorcycle.getStatus();
         motorcycle.setStatus(request.getStatus());
 
         Motorcycle updatedMotorcycle = motorcycleRepository.save(motorcycle);
         logger.info("Motorcycle status updated successfully: {} -> {}",
                 motorcycleId, request.getStatus());
 
+        activityLogService.createLog(updaterId, "MOTORCYCLE_STATUS_CHANGE",
+                String.format("Motorcycle %s status changed from %s to %s.",
+                        motorcycleId, oldStatus, updatedMotorcycle.getStatus()));
+
         return mapToResponse(updatedMotorcycle);
     }
 
     @Transactional
-    public void deleteMotorcycle(String motorcycleId) {
+    public void deleteMotorcycle(String motorcycleId, String deleterId) {
         logger.info("Deleting motorcycle: {}", motorcycleId);
 
         Motorcycle motorcycle = motorcycleRepository.findById(motorcycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "motorcycleId", motorcycleId));
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", motorcycleId));
 
-        List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleMotorcycleId(motorcycleId)
+        List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleId(motorcycleId)
                 .stream()
                 .filter(task -> task.getStatus() != ServiceTask.TaskStatus.COMPLETED)
-                .collect(Collectors.toList());
+                .toList();
 
         if (!activeTasks.isEmpty()) {
+            // Use ValidationException for business rule violation
             throw new ValidationException("Cannot delete motorcycle with active service tasks");
         }
 
         motorcycleRepository.delete(motorcycle);
         logger.info("Motorcycle deleted successfully: {}", motorcycleId);
+
+        activityLogService.createLog(deleterId, "MOTORCYCLE_DELETED",
+                String.format("Motorcycle %s deleted.", motorcycleId));
     }
 
     @Transactional(readOnly = true)
@@ -214,7 +228,7 @@ public class MotorcycleService {
                 .filter(m -> m.getStatus() == Motorcycle.MotorcycleStatus.IN_SERVICE)
                 .count();
 
-        LocalDate cutoffDate = LocalDate.now().minusMonths(SERVICE_INTERVAL_MONTHS);
+        LocalDateTime cutoffDate = LocalDateTime.now().minusMonths(SERVICE_INTERVAL_MONTHS);
         long motorcyclesNeedingService = allMotorcycles.stream()
                 .filter(m -> m.getLastServiceDate() == null || m.getLastServiceDate().isBefore(cutoffDate))
                 .count();
@@ -229,27 +243,27 @@ public class MotorcycleService {
     }
 
     private MotorcycleResponse mapToResponse(Motorcycle motorcycle) {
-        List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleMotorcycleId(motorcycle.getMotorcycleId())
+        List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleId(motorcycle.getId())
                 .stream()
                 .filter(task -> task.getStatus() != ServiceTask.TaskStatus.COMPLETED)
                 .toList();
 
-        boolean needsService = false;
+        boolean needsService;
         if (motorcycle.getLastServiceDate() == null) {
             needsService = true;
         } else {
-            LocalDate cutoffDate = LocalDate.now().minusMonths(SERVICE_INTERVAL_MONTHS);
+            LocalDateTime cutoffDate = LocalDateTime.now().minusMonths(SERVICE_INTERVAL_MONTHS);
             needsService = motorcycle.getLastServiceDate().isBefore(cutoffDate);
         }
 
         return MotorcycleResponse.builder()
-                .motorcycleId(motorcycle.getMotorcycleId())
+                .id(motorcycle.getId())
                 .qrCode(motorcycle.getQrCode())
                 .model(motorcycle.getModel())
                 .plateNumber(motorcycle.getPlateNumber())
-                .ownerName(motorcycle.getOwnerName())
-                .ownerPhone(motorcycle.getOwnerPhone())
-                .ownerEmail(motorcycle.getOwnerEmail())
+                .ownerName(motorcycle.getOwner().getName())
+                .ownerPhone(motorcycle.getOwner().getPhone())
+                .ownerEmail(motorcycle.getOwner().getEmail())
                 .status(motorcycle.getStatus())
                 .lastServiceDate(motorcycle.getLastServiceDate())
                 .createdAt(motorcycle.getCreatedAt())

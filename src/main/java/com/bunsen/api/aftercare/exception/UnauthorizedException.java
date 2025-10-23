@@ -1,11 +1,12 @@
 package com.bunsen.api.aftercare.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.UNAUTHORIZED)
-public class UnauthorizedException extends RuntimeException {
+public class UnauthorizedException extends ApiException {
+
+    private static final String REASON = "UNAUTHORIZED_ACCESS";
+
     public UnauthorizedException(String message) {
-        super(message);
+        super(HttpStatus.UNAUTHORIZED, REASON, "Access denied. " + message);
     }
 }

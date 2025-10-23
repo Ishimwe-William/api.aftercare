@@ -1,11 +1,12 @@
 package com.bunsen.api.aftercare.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.BAD_REQUEST)
-public class BadRequestException extends RuntimeException {
+public class BadRequestException extends ApiException {
+
+    private static final String REASON = "BAD_REQUEST_ERROR";
+
     public BadRequestException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, REASON, message);
     }
 }

@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,13 +35,15 @@ public class ServiceTaskService {
     private final ServiceTaskRepository serviceTaskRepository;
     private final UserRepository userRepository;
     private final MotorcycleRepository motorcycleRepository;
+    private final ActivityLogService activityLogService;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
-                              MotorcycleRepository motorcycleRepository) {
+                              MotorcycleRepository motorcycleRepository, ActivityLogService activityLogService) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
+        this.activityLogService = activityLogService;
     }
 
     @Transactional
@@ -51,10 +54,10 @@ public class ServiceTaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", request.getMotorcycleId()));
 
         User technician = userRepository.findById(request.getTechnicianId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getTechnicianId()));
+                .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", request.getTechnicianId()));
 
         ServiceTask task = new ServiceTask();
-        task.setTaskId(UUID.randomUUID().toString());
+        task.setId(UUID.randomUUID().toString());
         task.setMotorcycle(motorcycle);
         task.setTechnician(technician);
         task.setIssueType(request.getIssueType());
@@ -67,7 +70,10 @@ public class ServiceTaskService {
         task.setStatus(ServiceTask.TaskStatus.PENDING);
 
         ServiceTask savedTask = serviceTaskRepository.save(task);
-        logger.info("Service task created successfully with ID: {}", savedTask.getTaskId());
+        logger.info("Service task created successfully with ID: {}", savedTask.getId());
+
+        activityLogService.createLog("SYSTEM", "TASK_CREATED",
+                String.format("Service task %s created and assigned to %s.", savedTask.getId(), technician.getFullName()));
 
         return mapToResponse(savedTask);
     }
@@ -94,7 +100,7 @@ public class ServiceTaskService {
 
     @Transactional(readOnly = true)
     public List<ServiceTaskResponse> getTasksByMotorcycle(String motorcycleId) {
-        return serviceTaskRepository.findByMotorcycleMotorcycleId(motorcycleId).stream()
+        return serviceTaskRepository.findByMotorcycleId(motorcycleId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -122,10 +128,13 @@ public class ServiceTaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
         if (task.getStatus() == ServiceTask.TaskStatus.COMPLETED) {
+            // Use TaskStatusException
             throw new TaskStatusException(task.getStatus().name(), "update");
         }
 
-        if (!request.getMotorcycleId().equals(task.getMotorcycle().getMotorcycleId())) {
+        String oldTechnicianId = task.getTechnician().getId();
+
+        if (!request.getMotorcycleId().equals(task.getMotorcycle().getId())) {
             Motorcycle motorcycle = motorcycleRepository.findById(request.getMotorcycleId())
                     .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", request.getMotorcycleId()));
             task.setMotorcycle(motorcycle);
@@ -133,7 +142,7 @@ public class ServiceTaskService {
 
         if (!request.getTechnicianId().equals(task.getTechnician().getId())) {
             User technician = userRepository.findById(request.getTechnicianId())
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", request.getTechnicianId()));
+                    .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", request.getTechnicianId()));
             task.setTechnician(technician);
         }
 
@@ -151,6 +160,14 @@ public class ServiceTaskService {
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Service task updated successfully: {}", taskId);
 
+        if (!updatedTask.getTechnician().getId().equals(oldTechnicianId)) {
+            activityLogService.createLog("SYSTEM", "TASK_REASSIGNED",
+                    String.format("Task %s reassigned from %s to %s during update.", taskId, oldTechnicianId, updatedTask.getTechnician().getId()));
+        } else {
+            activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_UPDATED",
+                    String.format("Service task %s details updated by %s.", taskId, updatedTask.getTechnician().getFullName()));
+        }
+
         return mapToResponse(updatedTask);
     }
 
@@ -165,6 +182,7 @@ public class ServiceTaskService {
         ServiceTask.TaskStatus newStatus = request.getStatus();
 
         if (currentStatus == ServiceTask.TaskStatus.COMPLETED) {
+            // Use TaskStatusException
             throw new TaskStatusException(currentStatus.name(), "update");
         }
 
@@ -172,10 +190,19 @@ public class ServiceTaskService {
 
         switch (newStatus) {
             case IN_PROGRESS:
-                task.setStartedAt(LocalDateTime.now());
+                // Check if already started to avoid overwriting original start time
+                if (task.getStartedAt() == null) {
+                    task.setStartedAt(LocalDateTime.now());
+                }
                 break;
             case COMPLETED:
                 task.setCompletedAt(LocalDateTime.now());
+                break;
+            case PAUSED:
+                // Log pause time if necessary
+                break;
+            case PENDING:
+                // Already handled in validateStatusTransition
                 break;
         }
 
@@ -192,6 +219,10 @@ public class ServiceTaskService {
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Task status updated successfully: {} -> {}", currentStatus, newStatus);
 
+        // Log the status change
+        activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_STATUS_CHANGE",
+                String.format("Task %s status changed from %s to %s.", taskId, currentStatus, newStatus));
+
         return mapToResponse(updatedTask);
     }
 
@@ -203,11 +234,15 @@ public class ServiceTaskService {
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
         if (task.getStatus() != ServiceTask.TaskStatus.PENDING) {
+            // Use TaskStatusException
             throw new TaskStatusException(task.getStatus().name(), "delete");
         }
 
         serviceTaskRepository.delete(task);
         logger.info("Service task deleted successfully: {}", taskId);
+
+        activityLogService.createLog("SYSTEM", "TASK_DELETED",
+                String.format("Task %s deleted. Was assigned to %s.", taskId, task.getTechnician().getFullName()));
     }
 
     @Transactional(readOnly = true)
@@ -260,7 +295,7 @@ public class ServiceTaskService {
 
         long totalLaborHours = allTasks.stream()
                 .map(ServiceTask::getLaborHours)
-                .filter(hours -> hours != null)
+                .filter(Objects::nonNull)
                 .mapToLong(BigDecimal::longValue)
                 .sum();
 
@@ -298,6 +333,7 @@ public class ServiceTaskService {
                 }
                 break;
             case PENDING:
+                // Use ValidationException for status logic violation
                 throw new ValidationException("Cannot transition back to PENDING status");
         }
     }
@@ -308,7 +344,7 @@ public class ServiceTaskService {
             durationInHours = Duration.between(task.getStartedAt(), task.getCompletedAt()).toHours();
         }
 
-        Boolean isOverdue = false;
+        boolean isOverdue = false;
         if (task.getDueTime() != null &&
                 (task.getStatus() == ServiceTask.TaskStatus.PENDING ||
                         task.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)) {
@@ -316,8 +352,8 @@ public class ServiceTaskService {
         }
 
         return ServiceTaskResponse.builder()
-                .taskId(task.getTaskId())
-                .motorcycleId(task.getMotorcycle().getMotorcycleId())
+                .taskId(task.getId())
+                .motorcycleId(task.getMotorcycle().getId())
                 .motorcyclePlateNumber(task.getMotorcycle().getPlateNumber())
                 .technicianId(task.getTechnician().getId())
                 .technicianName(task.getTechnician().getFullName())

@@ -1,15 +1,17 @@
 package com.bunsen.api.aftercare.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.BAD_REQUEST)
-public class LowStockException extends RuntimeException {
+public class LowStockException extends ApiException {
+
+    private static final String REASON = "INSUFFICIENT_STOCK";
+
     public LowStockException(String message) {
-        super(message);
+        super(HttpStatus.BAD_REQUEST, REASON, message);
     }
 
     public LowStockException(String partName, int available, int required) {
-        super(String.format("Low stock for part '%s': available %d, required %d", partName, available, required));
+        super(HttpStatus.BAD_REQUEST, REASON,
+                String.format("Low stock for part '%s'. Available: %d, Required: %d.", partName, available, required));
     }
 }

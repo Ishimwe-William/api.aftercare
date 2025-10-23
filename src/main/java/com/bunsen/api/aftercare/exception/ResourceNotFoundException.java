@@ -1,19 +1,17 @@
 package com.bunsen.api.aftercare.exception;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.ResponseStatus;
 
-@ResponseStatus(HttpStatus.NOT_FOUND)
-public class ResourceNotFoundException extends RuntimeException {
+public class ResourceNotFoundException extends ApiException {
+
+    private static final String REASON = "RESOURCE_NOT_FOUND";
+
     public ResourceNotFoundException(String message) {
-        super(message);
-    }
-
-    public ResourceNotFoundException(String message, Throwable cause) {
-        super(message, cause);
+        super(HttpStatus.NOT_FOUND, REASON, message);
     }
 
     public ResourceNotFoundException(String resourceName, String fieldName, Object fieldValue) {
-        super(String.format("%s not found with %s: '%s'", resourceName, fieldName, fieldValue));
+        super(HttpStatus.NOT_FOUND, REASON,
+                String.format("%s not found with %s: '%s'", resourceName, fieldName, fieldValue));
     }
 }

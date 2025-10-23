@@ -1,9 +1,9 @@
 package com.bunsen.api.aftercare.repository;
 
 import com.bunsen.api.aftercare.model.ServiceTask;
+import com.bunsen.api.aftercare.repository.base.BaseRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -12,12 +12,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-public interface ServiceTaskRepository extends JpaRepository<ServiceTask, String> {
+public interface ServiceTaskRepository extends BaseRepository<ServiceTask, String> {
+
     List<ServiceTask> findByStatus(ServiceTask.TaskStatus status);
 
     List<ServiceTask> findByTechnicianId(String technicianId);
 
-    List<ServiceTask> findByMotorcycleMotorcycleId(String motorcycleId);
+    List<ServiceTask> findByMotorcycleId(String motorcycleId);
 
     List<ServiceTask> findByTechnicianIdAndStatus(String technicianId,
                                                   ServiceTask.TaskStatus status);
@@ -45,7 +46,7 @@ public interface ServiceTaskRepository extends JpaRepository<ServiceTask, String
                                                      Pageable pageable);
 
     @Query("SELECT AVG(TIMESTAMPDIFF(HOUR, st.createdAt, st.completedAt)) " +
-       "FROM ServiceTask st " +
-       "WHERE st.status = 'COMPLETED' AND st.completedAt IS NOT NULL")
+            "FROM ServiceTask st " +
+            "WHERE st.status = 'COMPLETED' AND st.completedAt IS NOT NULL")
     Double calculateAverageCompletionTimeInHours();
 }

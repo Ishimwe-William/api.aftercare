@@ -70,7 +70,7 @@ public class MonitoringService {
         if (filter.getTechnicianId() != null && !task.getTechnician().getId().equals(filter.getTechnicianId())) {
             return false;
         }
-        if (filter.getMotorcycleId() != null && !task.getMotorcycle().getMotorcycleId().equals(filter.getMotorcycleId())) {
+        if (filter.getMotorcycleId() != null && !task.getMotorcycle().getId().equals(filter.getMotorcycleId())) {
             return false;
         }
         if (filter.getStartDate() != null && task.getCreatedAt().isBefore(filter.getStartDate())) {
@@ -146,7 +146,7 @@ public class MonitoringService {
         log.setUser(newTechnician);
         log.setAction("TASK_REASSIGNED");
         log.setDetails(String.format("Task %s reassigned from %s to %s. Reason: %s",
-                task.getTaskId(), oldTechnicianName, newTechnician.getFullName(),
+                task.getId(), oldTechnicianName, newTechnician.getFullName(),
                 request.getReason() != null ? request.getReason() : "Not specified"));
         log.setTimestamp(LocalDateTime.now());
         activityLogRepository.save(log);
@@ -167,8 +167,8 @@ public class MonitoringService {
             long hoursOverdue = ChronoUnit.HOURS.between(task.getDueTime(), now);
             AlertResponse alert = new AlertResponse();
             alert.setId(UUID.randomUUID().toString());
-            alert.setCaseId(task.getTaskId());
-            alert.setMessage(String.format("Case %s is overdue by %d hours", task.getTaskId(), hoursOverdue));
+            alert.setCaseId(task.getId());
+            alert.setMessage(String.format("Case %s is overdue by %d hours", task.getId(), hoursOverdue));
             alert.setSeverity(hoursOverdue > 24 ? "error" : "warning");
             alert.setTimestamp(now);
             alerts.add(alert);
@@ -180,8 +180,8 @@ public class MonitoringService {
             if (task.getDueTime() != null && task.getDueTime().isBefore(now.plusHours(2))) {
                 AlertResponse alert = new AlertResponse();
                 alert.setId(UUID.randomUUID().toString());
-                alert.setCaseId(task.getTaskId());
-                alert.setMessage(String.format("High priority case %s requires attention", task.getTaskId()));
+                alert.setCaseId(task.getId());
+                alert.setMessage(String.format("High priority case %s requires attention", task.getId()));
                 alert.setSeverity("error");
                 alert.setTimestamp(now);
                 alerts.add(alert);
@@ -292,7 +292,7 @@ public class MonitoringService {
 
     private ServiceCaseResponse mapToServiceCaseResponse(ServiceTask task) {
         ServiceCaseResponse response = new ServiceCaseResponse();
-        response.setCaseId(task.getTaskId());
+        response.setCaseId(task.getId());
         response.setIssue(task.getDescription());
         response.setIssueType(task.getIssueType());
         response.setDescription(task.getDescription());
@@ -310,12 +310,12 @@ public class MonitoringService {
 
         MotorcycleInfo motorcycleInfo = new MotorcycleInfo();
         Motorcycle motorcycle = task.getMotorcycle();
-        motorcycleInfo.setId(motorcycle.getMotorcycleId());
+        motorcycleInfo.setId(motorcycle.getId());
         motorcycleInfo.setModel(motorcycle.getModel());
         motorcycleInfo.setPlateNumber(motorcycle.getPlateNumber());
         motorcycleInfo.setQrCode(motorcycle.getQrCode());
-        motorcycleInfo.setOwnerName(motorcycle.getOwnerName());
-        motorcycleInfo.setOwnerPhone(motorcycle.getOwnerPhone());
+        motorcycleInfo.setOwnerName(motorcycle.getOwner().getName());
+        motorcycleInfo.setOwnerPhone(motorcycle.getOwner().getPhone());
         response.setMotorcycle(motorcycleInfo);
 
         return response;
@@ -352,10 +352,10 @@ public class MonitoringService {
     }
 
     private List<PartUsageInfo> getPartUsageForTask(String taskId) {
-        List<TaskPartUsage> usages = taskPartUsageRepository.findByTaskTaskId(taskId);
+        List<TaskPartUsage> usages = taskPartUsageRepository.findByTaskId(taskId);
         return usages.stream().map(usage -> {
             PartUsageInfo info = new PartUsageInfo();
-            info.setPartId(usage.getPart().getPartId());
+            info.setPartId(usage.getPart().getId());
             info.setPartName(usage.getPart().getName());
             info.setQuantityUsed(usage.getQuantityUsed());
             info.setUnitCost(usage.getPart().getCost());
@@ -384,7 +384,7 @@ public class MonitoringService {
     }
 
     private InvoiceInfo getInvoiceForTask(String taskId) {
-        return invoiceRepository.findByTaskTaskId(taskId)
+        return invoiceRepository.findByTaskId(taskId)
                 .map(invoice -> {
                     InvoiceInfo info = new InvoiceInfo();
                     info.setInvoiceId(invoice.getInvoiceId());

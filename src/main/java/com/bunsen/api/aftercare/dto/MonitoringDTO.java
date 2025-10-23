@@ -2,6 +2,7 @@ package com.bunsen.api.aftercare.dto;
 
 import com.bunsen.api.aftercare.model.ServiceTask;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,6 +15,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class ServiceCaseResponse {
         private String caseId;
         private MotorcycleInfo motorcycle;
@@ -36,6 +38,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class MotorcycleInfo {
         private String id;
         private String model;
@@ -48,6 +51,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class AlertResponse {
         private String id;
         private String message;
@@ -59,6 +63,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class ServiceTimelineData {
         private LocalDateTime timestamp;
         private Integer pendingCount;
@@ -69,6 +74,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class PeakHoursData {
         private Integer hour;
         private Integer dayOfWeek;
@@ -78,6 +84,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class MonitoringStats {
         private Long totalCases;
         private Long pendingCases;
@@ -90,6 +97,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class ReassignRequest {
         private String taskId;
         private String newTechnicianId;
@@ -99,6 +107,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class MonitoringFilter {
         private ServiceTask.TaskStatus status;
         private String dateRange;
@@ -111,6 +120,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class CaseDetailsResponse {
         private ServiceCaseResponse caseInfo;
         private List<PartUsageInfo> partsUsed;
@@ -121,6 +131,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class PartUsageInfo {
         private String partId;
         private String partName;
@@ -133,6 +144,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class ActivityInfo {
         private String action;
         private String details;
@@ -143,6 +155,7 @@ public class MonitoringDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class InvoiceInfo {
         private String invoiceId;
         private String invoiceNumber;

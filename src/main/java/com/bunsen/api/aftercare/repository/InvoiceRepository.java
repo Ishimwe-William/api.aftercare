@@ -1,9 +1,9 @@
 package com.bunsen.api.aftercare.repository;
 
 import com.bunsen.api.aftercare.model.Invoice;
+import com.bunsen.api.aftercare.repository.base.TimestampedRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -13,8 +13,9 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
-public interface InvoiceRepository extends JpaRepository<Invoice, String> {
-    Optional<Invoice> findByTaskTaskId(String taskId);
+public interface InvoiceRepository extends TimestampedRepository<Invoice, String> {
+
+    Optional<Invoice> findByTaskId(String taskId);
 
     @Query("SELECT i FROM Invoice i WHERE i.generatedAt BETWEEN :startDate AND :endDate")
     Page<Invoice> findInvoicesBetween(@Param("startDate") LocalDateTime startDate,
