@@ -8,6 +8,7 @@ import com.bunsen.api.aftercare.dto.response.SparePartResponse;
 import com.bunsen.api.aftercare.dto.response.StockAlertResponse;
 import com.bunsen.api.aftercare.dto.response.PartUsageResponse;
 import com.bunsen.api.aftercare.service.SparePartService;
+import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -82,8 +84,10 @@ public class SparePartController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SparePartResponse> createPart(@Valid @RequestBody SparePartRequest request) {
-        SparePartResponse response = sparePartService.createPart(request);
+    public ResponseEntity<SparePartResponse> createPart(@Valid @RequestBody SparePartRequest request,
+                                                        @AuthenticationPrincipal UserDetailsImpl principal) {
+        String creatorId = principal.getId();
+        SparePartResponse response = sparePartService.createPart(request, creatorId);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
@@ -98,18 +102,21 @@ public class SparePartController {
     @PatchMapping("/{id}/stock")
     public ResponseEntity<SparePartResponse> adjustStock(
             @PathVariable String id,
-            @Valid @RequestBody StockAdjustmentRequest request) {
-        return ResponseEntity.ok(sparePartService.adjustStock(id, request));
+            @Valid @RequestBody StockAdjustmentRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updaterId = principal.getId();
+        return ResponseEntity.ok(sparePartService.adjustStock(id, request, updaterId));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MessageResponse> deletePart(@PathVariable String id) {
-        sparePartService.deletePart(id);
+    public ResponseEntity<MessageResponse> deletePart(@PathVariable String id,
+                                                      @AuthenticationPrincipal UserDetailsImpl principal) {
+        String deleterId = principal.getId();
+        sparePartService.deletePart(id, deleterId);
         return ResponseEntity.ok(new MessageResponse("Spare part deleted successfully"));
     }
 
-    /* ToDo: test after task creation */
     @PostMapping("/usage")
     public ResponseEntity<PartUsageResponse> logPartUsage(@Valid @RequestBody PartUsageRequest request) {
         return ResponseEntity.ok(sparePartService.logPartUsage(request));
@@ -120,7 +127,6 @@ public class SparePartController {
         return ResponseEntity.ok(sparePartService.getPartUsageHistory(partId));
     }
 
-    /* ToDo: test after task creation */
     @GetMapping("/usage/task/{taskId}")
     public ResponseEntity<List<PartUsageResponse>> getTaskPartUsages(@PathVariable String taskId) {
         return ResponseEntity.ok(sparePartService.getTaskPartUsages(taskId));

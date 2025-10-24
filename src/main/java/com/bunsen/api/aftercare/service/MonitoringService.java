@@ -359,7 +359,7 @@ public class MonitoringService {
             info.setPartName(usage.getPart().getName());
             info.setQuantityUsed(usage.getQuantityUsed());
             info.setUnitCost(usage.getPart().getCost());
-            info.setTotalCost(usage.getPart().getCost().multiply(new java.math.BigDecimal(usage.getQuantityUsed())));
+            info.setTotalCost(usage.getPart().getCost().multiply(java.math.BigDecimal.valueOf(usage.getQuantityUsed())));
             info.setUsedAt(usage.getUsedAt());
             return info;
         }).collect(Collectors.toList());

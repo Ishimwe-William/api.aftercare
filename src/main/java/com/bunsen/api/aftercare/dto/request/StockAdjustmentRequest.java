@@ -5,13 +5,9 @@ import lombok.Data;
 
 @Data
 public class StockAdjustmentRequest {
-    @NotBlank(message = "Adjustment type is required (ADD or SUBTRACT)")
-    @Pattern(regexp = "ADD|SUBTRACT", message = "Adjustment type must be ADD or SUBTRACT")
-    private String adjustmentType;
-
-    @NotNull(message = "Quantity is required")
-    @Min(value = 1, message = "Quantity must be at least 1")
-    private Integer quantity;
+    @NotNull(message = "Target quantity is required")
+    @DecimalMin(value = "0.0", message = "Target quantity must be zero or greater")
+    private Double targetQuantity;
 
     @Size(max = 500, message = "Reason must not exceed 500 characters")
     private String reason;

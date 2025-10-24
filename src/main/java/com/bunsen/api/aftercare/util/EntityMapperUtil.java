@@ -49,7 +49,7 @@ public class EntityMapperUtil {
         Boolean isOverdue = isTaskOverdue(task);
 
         return ServiceTaskResponse.builder()
-                .taskId(task.getId())
+                .id(task.getId())
                 .motorcycleId(task.getMotorcycle().getId())
                 .motorcyclePlateNumber(task.getMotorcycle().getPlateNumber())
                 .technicianId(task.getTechnician().getId())
@@ -97,7 +97,7 @@ public class EntityMapperUtil {
      */
     public SparePartResponse mapToSparePartResponse(SparePart part, Long totalUsed) {
         return SparePartResponse.builder()
-                .partId(part.getId())
+                .id(part.getId())
                 .name(part.getName())
                 .description(part.getDescription())
                 .quantityAvailable(part.getQuantityAvailable())

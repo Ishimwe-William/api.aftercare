@@ -13,8 +13,8 @@ public class SparePartRequest {
     @Size(max = 1000, message = "Description must not exceed 1000 characters")
     private String description;
 
-    @Min(value = 0, message = "Quantity must be non-negative")
-    private Integer quantityAvailable;
+    @DecimalMin(value = "0.0", message = "Quantity must be non-negative")
+    private Double quantityAvailable;
 
     @NotNull(message = "Cost is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "Cost must be greater than 0")
@@ -27,6 +27,6 @@ public class SparePartRequest {
     @Size(max = 255, message = "Supplier contact must not exceed 255 characters")
     private String supplierContact;
 
-    @Min(value = 0, message = "Low stock threshold must be non-negative")
-    private Integer lowStockThreshold;
+    @DecimalMin(value = "0.0", message = "Low stock threshold must be non-negative")
+    private Double lowStockThreshold;
 }

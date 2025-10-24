@@ -352,7 +352,7 @@ public class ServiceTaskService {
         }
 
         return ServiceTaskResponse.builder()
-                .taskId(task.getId())
+                .id(task.getId())
                 .motorcycleId(task.getMotorcycle().getId())
                 .motorcyclePlateNumber(task.getMotorcycle().getPlateNumber())
                 .technicianId(task.getTechnician().getId())

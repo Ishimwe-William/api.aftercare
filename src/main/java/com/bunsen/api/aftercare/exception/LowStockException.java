@@ -10,8 +10,9 @@ public class LowStockException extends ApiException {
         super(HttpStatus.BAD_REQUEST, REASON, message);
     }
 
-    public LowStockException(String partName, int available, int required) {
+    public LowStockException(String partName, Double available, Double required) {
         super(HttpStatus.BAD_REQUEST, REASON,
-                String.format("Low stock for part '%s'. Available: %d, Required: %d.", partName, available, required));
+                String.format("Low stock for part '%s'. Available: %.2f, Required: %.2f.", partName, available, required));
     }
+
 }

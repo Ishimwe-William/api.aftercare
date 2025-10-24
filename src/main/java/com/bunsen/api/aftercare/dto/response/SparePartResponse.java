@@ -13,14 +13,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SparePartResponse {
-    private String partId;
+    private String id;
     private String name;
     private String description;
-    private Integer quantityAvailable;
+    private Double quantityAvailable;
     private BigDecimal cost;
     private String supplierName;
     private String supplierContact;
-    private Integer lowStockThreshold;
+    private Double lowStockThreshold;
     private Boolean isLowStock;
     private Boolean isOutOfStock;
     private Long totalUsed;

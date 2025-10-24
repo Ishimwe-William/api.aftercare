@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ServiceTaskResponse {
-    private String taskId;
+    private String id;
     private String motorcycleId;
     private String motorcyclePlateNumber;
     private String technicianId;

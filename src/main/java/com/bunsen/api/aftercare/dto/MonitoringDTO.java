@@ -135,7 +135,7 @@ public class MonitoringDTO {
     public static class PartUsageInfo {
         private String partId;
         private String partName;
-        private Integer quantityUsed;
+        private Double quantityUsed;
         private BigDecimal unitCost;
         private BigDecimal totalCost;
         private LocalDateTime usedAt;

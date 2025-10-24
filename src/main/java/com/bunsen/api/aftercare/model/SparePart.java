@@ -25,7 +25,7 @@ public class SparePart extends BaseEntity {
     private String description;
 
     @Column(name = "quantity_available", nullable = false)
-    private Integer quantityAvailable = 0;
+    private Double quantityAvailable = 0.0;
 
     @Column(name = "cost", precision = 10, scale = 2, nullable = false)
     private BigDecimal cost;
@@ -34,16 +34,16 @@ public class SparePart extends BaseEntity {
     private SupplierInfo supplier;
 
     @Column(name = "low_stock_threshold")
-    private Integer lowStockThreshold = 10;
+    private Double lowStockThreshold = 10.0;
 
     @Override
     protected void onCreate() {
         super.onCreate();
         if (quantityAvailable == null) {
-            quantityAvailable = 0;
+            quantityAvailable = 0.0;
         }
         if (lowStockThreshold == null) {
-            lowStockThreshold = 10;
+            lowStockThreshold = 10.0;
         }
     }
 }

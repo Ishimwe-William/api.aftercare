@@ -31,7 +31,7 @@ public class TaskPartUsage extends TimestampedEntity {
     private SparePart part;
 
     @Column(name = "quantity_used", nullable = false)
-    private Integer quantityUsed;
+    private Double quantityUsed;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;

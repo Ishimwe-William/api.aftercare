@@ -16,7 +16,7 @@ public class PartUsageResponse {
     private String taskId;
     private String partId;
     private String partName;
-    private Integer quantityUsed;
+    private Double quantityUsed;
     private String notes;
     private LocalDateTime usedAt;
 
