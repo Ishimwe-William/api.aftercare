@@ -7,6 +7,7 @@ import com.bunsen.api.aftercare.dto.response.ServiceTaskResponse;
 import com.bunsen.api.aftercare.dto.response.TaskStatisticsResponse;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.service.ServiceTaskService;
+import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,6 +16,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -112,8 +114,10 @@ public class ServiceTaskController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ServiceTaskResponse> createTask(@Valid @RequestBody ServiceTaskRequest request) {
-        ServiceTaskResponse response = serviceTaskService.createTask(request);
+    public ResponseEntity<ServiceTaskResponse> createTask(@Valid @RequestBody ServiceTaskRequest request,
+                                                          @AuthenticationPrincipal UserDetailsImpl principal) {
+        String creatorId = principal.getId();
+        ServiceTaskResponse response = serviceTaskService.createTask(request, creatorId);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
@@ -121,8 +125,10 @@ public class ServiceTaskController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ServiceTaskResponse> updateTask(
             @PathVariable String id,
-            @Valid @RequestBody ServiceTaskRequest request) {
-        return ResponseEntity.ok(serviceTaskService.updateTask(id, request));
+            @Valid @RequestBody ServiceTaskRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        String updaterId = principal.getId();
+        return ResponseEntity.ok(serviceTaskService.updateTask(id, request, updaterId));
     }
 
     @PatchMapping("/{id}/status")
@@ -134,8 +140,10 @@ public class ServiceTaskController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<MessageResponse> deleteTask(@PathVariable String id) {
-        serviceTaskService.deleteTask(id);
+    public ResponseEntity<MessageResponse> deleteTask(@PathVariable String id,
+                                                      @AuthenticationPrincipal UserDetailsImpl principal) {
+        String deleterId = principal.getId();
+        serviceTaskService.deleteTask(id, deleterId);
         return ResponseEntity.ok(new MessageResponse("Service task deleted successfully"));
     }
 }

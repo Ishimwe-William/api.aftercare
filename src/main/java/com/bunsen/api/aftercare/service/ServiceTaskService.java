@@ -47,7 +47,7 @@ public class ServiceTaskService {
     }
 
     @Transactional
-    public ServiceTaskResponse createTask(ServiceTaskRequest request) {
+    public ServiceTaskResponse createTask(ServiceTaskRequest request, String creatorId) {
         logger.info("Creating new service task for motorcycle: {}", request.getMotorcycleId());
 
         Motorcycle motorcycle = motorcycleRepository.findById(request.getMotorcycleId())
@@ -72,7 +72,7 @@ public class ServiceTaskService {
         ServiceTask savedTask = serviceTaskRepository.save(task);
         logger.info("Service task created successfully with ID: {}", savedTask.getId());
 
-        activityLogService.createLog("SYSTEM", "TASK_CREATED",
+        activityLogService.createLog(creatorId, "TASK_CREATED",
                 String.format("Service task %s created and assigned to %s.", savedTask.getId(), technician.getFullName()));
 
         return mapToResponse(savedTask);
@@ -121,7 +121,7 @@ public class ServiceTaskService {
     }
 
     @Transactional
-    public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request) {
+    public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request, String updaterId) {
         logger.info("Updating service task: {}", taskId);
 
         ServiceTask task = serviceTaskRepository.findById(taskId)
@@ -161,7 +161,7 @@ public class ServiceTaskService {
         logger.info("Service task updated successfully: {}", taskId);
 
         if (!updatedTask.getTechnician().getId().equals(oldTechnicianId)) {
-            activityLogService.createLog("SYSTEM", "TASK_REASSIGNED",
+            activityLogService.createLog(updaterId, "TASK_REASSIGNED",
                     String.format("Task %s reassigned from %s to %s during update.", taskId, oldTechnicianId, updatedTask.getTechnician().getId()));
         } else {
             activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_UPDATED",
@@ -227,7 +227,7 @@ public class ServiceTaskService {
     }
 
     @Transactional
-    public void deleteTask(String taskId) {
+    public void deleteTask(String taskId, String deleterId) {
         logger.info("Deleting service task: {}", taskId);
 
         ServiceTask task = serviceTaskRepository.findById(taskId)
@@ -241,7 +241,7 @@ public class ServiceTaskService {
         serviceTaskRepository.delete(task);
         logger.info("Service task deleted successfully: {}", taskId);
 
-        activityLogService.createLog("SYSTEM", "TASK_DELETED",
+        activityLogService.createLog(deleterId, "TASK_DELETED",
                 String.format("Task %s deleted. Was assigned to %s.", taskId, task.getTechnician().getFullName()));
     }
 
