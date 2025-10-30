@@ -1,7 +1,7 @@
 package com.bunsen.api.aftercare.util;
 
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ValidationException;
-import com.bunsen.api.aftercare.model.ServiceTask;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -72,24 +72,30 @@ public class ValidationUtil {
     /**
      * Validate task status transition
      */
-    public void validateStatusTransition(ServiceTask.TaskStatus current, ServiceTask.TaskStatus target) {
+    public void validateStatusTransition(ETaskStatus current, ETaskStatus target) {
         switch (target) {
             case IN_PROGRESS:
-                if (current != ServiceTask.TaskStatus.PENDING && current != ServiceTask.TaskStatus.PAUSED) {
+                if (current != ETaskStatus.PENDING && current != ETaskStatus.PAUSED) {
                     throw new ValidationException(
                             String.format("Cannot transition from %s to IN_PROGRESS", current));
                 }
                 break;
             case PAUSED:
-                if (current != ServiceTask.TaskStatus.IN_PROGRESS) {
+                if (current != ETaskStatus.IN_PROGRESS) {
                     throw new ValidationException(
                             String.format("Cannot transition from %s to PAUSED", current));
                 }
                 break;
             case COMPLETED:
-                if (current != ServiceTask.TaskStatus.IN_PROGRESS) {
+                if (current != ETaskStatus.IN_PROGRESS) {
                     throw new ValidationException(
                             String.format("Cannot transition from %s to COMPLETED", current));
+                }
+                break;
+            case CANCELLED: // <-- ADDED LOGIC FOR CANCELLED
+                if (current == ETaskStatus.COMPLETED) { // Prevents cancelling a completed task
+                    throw new ValidationException(
+                            String.format("Cannot transition from %s to CANCELLED", current));
                 }
                 break;
             case PENDING:

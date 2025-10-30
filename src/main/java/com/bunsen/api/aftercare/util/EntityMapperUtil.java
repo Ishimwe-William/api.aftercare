@@ -1,6 +1,10 @@
 package com.bunsen.api.aftercare.util;
 
-import com.bunsen.api.aftercare.dto.response.*;
+import com.bunsen.api.aftercare.dto.MotorcycleDTO;
+import com.bunsen.api.aftercare.dto.ServiceTaskDTO;
+import com.bunsen.api.aftercare.dto.SparePartDTO;
+import com.bunsen.api.aftercare.dto.TechnicianDTO;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.model.*;
 import org.springframework.stereotype.Component;
 
@@ -19,12 +23,12 @@ public class EntityMapperUtil {
     /**
      * Map User to TechnicianResponse
      */
-    public TechnicianResponse mapToTechnicianResponse(User technician, Long activeTasks, Long completedTasks) {
+    public TechnicianDTO.TechnicianResponse mapToTechnicianResponse(User technician, Long activeTasks, Long completedTasks) {
         Set<String> roleNames = technician.getRoles().stream()
                 .map(role -> role.getName().name())
                 .collect(Collectors.toSet());
 
-        return TechnicianResponse.builder()
+        return TechnicianDTO.TechnicianResponse.builder()
                 .id(technician.getId())
                 .username(technician.getUsername())
                 .email(technician.getEmail())
@@ -44,11 +48,11 @@ public class EntityMapperUtil {
     /**
      * Map ServiceTask to ServiceTaskResponse
      */
-    public ServiceTaskResponse mapToServiceTaskResponse(ServiceTask task) {
+    public ServiceTaskDTO.ServiceTaskResponse mapToServiceTaskResponse(ServiceTask task) {
         Long durationInHours = calculateDuration(task.getStartedAt(), task.getCompletedAt());
         Boolean isOverdue = isTaskOverdue(task);
 
-        return ServiceTaskResponse.builder()
+        return ServiceTaskDTO.ServiceTaskResponse.builder()
                 .id(task.getId())
                 .motorcycleId(task.getMotorcycle().getId())
                 .motorcyclePlateNumber(task.getMotorcycle().getPlateNumber())
@@ -60,6 +64,7 @@ public class EntityMapperUtil {
                 .assignedAt(task.getAssignedAt())
                 .startedAt(task.getStartedAt())
                 .completedAt(task.getCompletedAt())
+                .cancelledAt(task.getCancelledAt()) // <-- ADDED
                 .notes(task.getNotes())
                 .laborHours(task.getLaborHours())
                 .estimatedTime(task.getEstimatedTime())
@@ -74,8 +79,8 @@ public class EntityMapperUtil {
     /**
      * Map Motorcycle to MotorcycleResponse
      */
-    public MotorcycleResponse mapToMotorcycleResponse(Motorcycle motorcycle, int activeTasksCount, boolean needsService) {
-        return MotorcycleResponse.builder()
+    public MotorcycleDTO.MotorcycleResponse mapToMotorcycleResponse(Motorcycle motorcycle, int activeTasksCount, boolean needsService) {
+        return MotorcycleDTO.MotorcycleResponse.builder()
                 .id(motorcycle.getId())
                 .qrCode(motorcycle.getQrCode())
                 .model(motorcycle.getModel())
@@ -95,8 +100,8 @@ public class EntityMapperUtil {
     /**
      * Map SparePart to SparePartResponse
      */
-    public SparePartResponse mapToSparePartResponse(SparePart part, Long totalUsed) {
-        return SparePartResponse.builder()
+    public SparePartDTO.SparePartResponse mapToSparePartResponse(SparePart part, Long totalUsed) {
+        return SparePartDTO.SparePartResponse.builder()
                 .id(part.getId())
                 .name(part.getName())
                 .description(part.getDescription())
@@ -116,8 +121,8 @@ public class EntityMapperUtil {
     /**
      * Map TaskPartUsage to PartUsageResponse
      */
-    public PartUsageResponse mapToPartUsageResponse(TaskPartUsage usage) {
-        return PartUsageResponse.builder()
+    public SparePartDTO.PartUsageResponse mapToPartUsageResponse(TaskPartUsage usage) {
+        return SparePartDTO.PartUsageResponse.builder()
                 .usageId(usage.getUsageId())
                 .taskId(usage.getTask().getId())
                 .partId(usage.getPart().getId())
@@ -132,23 +137,20 @@ public class EntityMapperUtil {
      * Calculate task progress percentage
      */
     public Integer calculateTaskProgress(ServiceTask task) {
-        switch (task.getStatus()) {
-            case PENDING:
-                return 0;
-            case IN_PROGRESS:
+        return switch (task.getStatus()) {
+            case PENDING -> 0;
+            case IN_PROGRESS -> {
                 if (task.getEstimatedTime() != null && task.getStartedAt() != null) {
                     long elapsed = Duration.between(task.getStartedAt(), LocalDateTime.now()).toMinutes();
                     int progress = (int) ((elapsed * 100) / task.getEstimatedTime());
-                    return Math.min(progress, 95);
+                    yield Math.min(progress, 95);
                 }
-                return 50;
-            case COMPLETED:
-                return 100;
-            case PAUSED:
-                return 30;
-            default:
-                return 0;
-        }
+                yield 50;
+            }
+            case COMPLETED -> 100;
+            case PAUSED -> 30;
+            default -> 0;
+        };
     }
 
     /**
@@ -179,8 +181,8 @@ public class EntityMapperUtil {
      */
     private Boolean isTaskOverdue(ServiceTask task) {
         if (task.getDueTime() != null &&
-                (task.getStatus() == ServiceTask.TaskStatus.PENDING ||
-                        task.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)) {
+                (task.getStatus() == ETaskStatus.PENDING ||
+                        task.getStatus() == ETaskStatus.IN_PROGRESS)) {
             return task.getDueTime().isBefore(LocalDateTime.now());
         }
         return false;

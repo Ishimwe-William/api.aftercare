@@ -1,18 +1,17 @@
 package com.bunsen.api.aftercare.service;
 
-import com.bunsen.api.aftercare.dto.request.ServiceTaskRequest;
-import com.bunsen.api.aftercare.dto.request.TaskStatusUpdateRequest;
-import com.bunsen.api.aftercare.dto.response.ServiceTaskResponse;
-import com.bunsen.api.aftercare.dto.response.TaskStatisticsResponse;
+import com.bunsen.api.aftercare.dto.ServiceTaskDTO.*;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
-import com.bunsen.api.aftercare.exception.ValidationException;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.repository.MotorcycleRepository;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
+import com.bunsen.api.aftercare.util.EntityMapperUtil;
+import com.bunsen.api.aftercare.util.ValidationUtil; // Imported
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -21,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -36,14 +34,21 @@ public class ServiceTaskService {
     private final UserRepository userRepository;
     private final MotorcycleRepository motorcycleRepository;
     private final ActivityLogService activityLogService;
+    private final EntityMapperUtil entityMapperUtil;
+    private final ValidationUtil validationUtil;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
-                              MotorcycleRepository motorcycleRepository, ActivityLogService activityLogService) {
+                              MotorcycleRepository motorcycleRepository,
+                              ActivityLogService activityLogService,
+                              EntityMapperUtil entityMapperUtil,
+                              ValidationUtil validationUtil) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
         this.activityLogService = activityLogService;
+        this.entityMapperUtil = entityMapperUtil;
+        this.validationUtil = validationUtil;
     }
 
     @Transactional
@@ -67,7 +72,7 @@ public class ServiceTaskService {
         task.setEstimatedTime(request.getEstimatedTime());
         task.setDueTime(request.getDueTime());
         task.setAssignedAt(LocalDateTime.now());
-        task.setStatus(ServiceTask.TaskStatus.PENDING);
+        task.setStatus(ETaskStatus.PENDING);
 
         ServiceTask savedTask = serviceTaskRepository.save(task);
         logger.info("Service task created successfully with ID: {}", savedTask.getId());
@@ -75,51 +80,50 @@ public class ServiceTaskService {
         activityLogService.createLog(creatorId, "TASK_CREATED",
                 String.format("Service task %s created and assigned to %s.", savedTask.getId(), technician.getFullName()));
 
-        return mapToResponse(savedTask);
+        return entityMapperUtil.mapToServiceTaskResponse(savedTask);
     }
 
     @Transactional(readOnly = true)
     public ServiceTaskResponse getTaskById(String taskId) {
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
-        return mapToResponse(task);
+        return entityMapperUtil.mapToServiceTaskResponse(task);
     }
 
     @Transactional(readOnly = true)
     public Page<ServiceTaskResponse> getAllTasks(Pageable pageable) {
         return serviceTaskRepository.findAll(pageable)
-                .map(this::mapToResponse);
+                .map(entityMapperUtil::mapToServiceTaskResponse);
     }
 
     @Transactional(readOnly = true)
     public List<ServiceTaskResponse> getTasksByTechnician(String technicianId) {
         return serviceTaskRepository.findByTechnicianId(technicianId).stream()
-                .map(this::mapToResponse)
+                .map(entityMapperUtil::mapToServiceTaskResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<ServiceTaskResponse> getTasksByMotorcycle(String motorcycleId) {
         return serviceTaskRepository.findByMotorcycleId(motorcycleId).stream()
-                .map(this::mapToResponse)
+                .map(entityMapperUtil::mapToServiceTaskResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<ServiceTaskResponse> getTasksByStatus(ServiceTask.TaskStatus status) {
+    public List<ServiceTaskResponse> getTasksByStatus(ETaskStatus status) {
         return serviceTaskRepository.findByStatus(status).stream()
-                .map(this::mapToResponse)
+                .map(entityMapperUtil::mapToServiceTaskResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
     public List<ServiceTaskResponse> getTasksByTechnicianAndStatus(String technicianId,
-                                                                   ServiceTask.TaskStatus status) {
+                                                                   ETaskStatus status) {
         return serviceTaskRepository.findByTechnicianIdAndStatus(technicianId, status).stream()
-                .map(this::mapToResponse)
+                .map(entityMapperUtil::mapToServiceTaskResponse) // Use EntityMapperUtil
                 .collect(Collectors.toList());
     }
-
     @Transactional
     public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request, String updaterId) {
         logger.info("Updating service task: {}", taskId);
@@ -127,8 +131,7 @@ public class ServiceTaskService {
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
-        if (task.getStatus() == ServiceTask.TaskStatus.COMPLETED) {
-            // Use TaskStatusException
+        if (task.getStatus() == ETaskStatus.COMPLETED) {
             throw new TaskStatusException(task.getStatus().name(), "update");
         }
 
@@ -168,25 +171,33 @@ public class ServiceTaskService {
                     String.format("Service task %s details updated by %s.", taskId, updatedTask.getTechnician().getFullName()));
         }
 
-        return mapToResponse(updatedTask);
+        return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
     }
 
     @Transactional
-    public ServiceTaskResponse updateTaskStatus(String taskId, TaskStatusUpdateRequest request) {
+    public ServiceTaskResponse updateTaskStatus(String taskId, TaskStatusUpdateRequest request, UserDetailsImpl principal) {
         logger.info("Updating task status for task: {} to {}", taskId, request.getStatus());
 
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
-        ServiceTask.TaskStatus currentStatus = task.getStatus();
-        ServiceTask.TaskStatus newStatus = request.getStatus();
+        ETaskStatus currentStatus = task.getStatus();
+        ETaskStatus newStatus = request.getStatus();
+        String updaterId = principal.getId();
 
-        if (currentStatus == ServiceTask.TaskStatus.COMPLETED) {
-            // Use TaskStatusException
+        // Check for Admin role to determine if status transition rules can be bypassed
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (currentStatus == ETaskStatus.COMPLETED) {
+            // Generally, moving out of COMPLETED is disallowed
             throw new TaskStatusException(currentStatus.name(), "update");
         }
 
-        validateStatusTransition(currentStatus, newStatus);
+        // Only validate status transition if the user is NOT an Admin
+        if (!isAdmin) {
+            validationUtil.validateStatusTransition(currentStatus, newStatus);
+        }
 
         switch (newStatus) {
             case IN_PROGRESS:
@@ -194,15 +205,24 @@ public class ServiceTaskService {
                 if (task.getStartedAt() == null) {
                     task.setStartedAt(LocalDateTime.now());
                 }
+                task.setCancelledAt(null);
                 break;
             case COMPLETED:
                 task.setCompletedAt(LocalDateTime.now());
+                task.setCancelledAt(null);
+                break; //
+            case CANCELLED:
+                task.setCancelledAt(LocalDateTime.now());
+                task.setCompletedAt(null);
                 break;
             case PAUSED:
                 // Log pause time if necessary
                 break;
             case PENDING:
-                // Already handled in validateStatusTransition
+                // If admin forces PENDING, clear start/complete/cancel times
+                task.setStartedAt(null);
+                task.setCompletedAt(null);
+                task.setCancelledAt(null);
                 break;
         }
 
@@ -220,10 +240,10 @@ public class ServiceTaskService {
         logger.info("Task status updated successfully: {} -> {}", currentStatus, newStatus);
 
         // Log the status change
-        activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_STATUS_CHANGE",
-                String.format("Task %s status changed from %s to %s.", taskId, currentStatus, newStatus));
+        activityLogService.createLog(updaterId, "TASK_STATUS_CHANGE",
+                String.format("Task %s status changed from %s to %s by user %s.", taskId, currentStatus, newStatus, updaterId));
 
-        return mapToResponse(updatedTask);
+        return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
     }
 
     @Transactional
@@ -233,7 +253,7 @@ public class ServiceTaskService {
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
-        if (task.getStatus() != ServiceTask.TaskStatus.PENDING) {
+        if (task.getStatus() != ETaskStatus.PENDING) {
             // Use TaskStatusException
             throw new TaskStatusException(task.getStatus().name(), "delete");
         }
@@ -248,7 +268,7 @@ public class ServiceTaskService {
     @Transactional(readOnly = true)
     public Page<ServiceTaskResponse> getOverdueTasks(Pageable pageable) {
         return serviceTaskRepository.findOverdueTasks(LocalDateTime.now(), pageable)
-                .map(this::mapToResponse);
+                .map(entityMapperUtil::mapToServiceTaskResponse);
     }
 
     @Transactional(readOnly = true)
@@ -256,7 +276,7 @@ public class ServiceTaskService {
                                                               LocalDateTime endDate,
                                                               Pageable pageable) {
         return serviceTaskRepository.findCompletedTasksBetween(startDate, endDate, pageable)
-                .map(this::mapToResponse);
+                .map(entityMapperUtil::mapToServiceTaskResponse);
     }
 
     @Transactional(readOnly = true)
@@ -265,7 +285,7 @@ public class ServiceTaskService {
                                                                    LocalDateTime endDate,
                                                                    Pageable pageable) {
         return serviceTaskRepository.findTechnicianTasksInDateRange(technicianId, startDate, endDate, pageable)
-                .map(this::mapToResponse);
+                .map(entityMapperUtil::mapToServiceTaskResponse);
     }
 
     @Transactional(readOnly = true)
@@ -274,21 +294,21 @@ public class ServiceTaskService {
 
         long totalTasks = allTasks.size();
         long pendingTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.PENDING)
+                .filter(t -> t.getStatus() == ETaskStatus.PENDING)
                 .count();
         long inProgressTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)
+                .filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS)
                 .count();
         long completedTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.COMPLETED)
+                .filter(t -> t.getStatus() == ETaskStatus.COMPLETED)
                 .count();
 
         LocalDateTime now = LocalDateTime.now();
         long overdueTasks = allTasks.stream()
                 .filter(t -> t.getDueTime() != null &&
                         t.getDueTime().isBefore(now) &&
-                        (t.getStatus() == ServiceTask.TaskStatus.PENDING ||
-                                t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS))
+                        (t.getStatus() == ETaskStatus.PENDING ||
+                                t.getStatus() == ETaskStatus.IN_PROGRESS))
                 .count();
 
         Double averageCompletionTime = serviceTaskRepository.calculateAverageCompletionTimeInHours();
@@ -313,64 +333,5 @@ public class ServiceTaskService {
     @Transactional(readOnly = true)
     public Long getCompletedTaskCountByTechnician(String technicianId) {
         return serviceTaskRepository.countCompletedTasksByTechnician(technicianId);
-    }
-
-    private void validateStatusTransition(ServiceTask.TaskStatus current, ServiceTask.TaskStatus target) {
-        switch (target) {
-            case IN_PROGRESS:
-                if (current != ServiceTask.TaskStatus.PENDING && current != ServiceTask.TaskStatus.PAUSED) {
-                    throw new TaskStatusException(current.name(), "start");
-                }
-                break;
-            case PAUSED:
-                if (current != ServiceTask.TaskStatus.IN_PROGRESS) {
-                    throw new TaskStatusException(current.name(), "pause");
-                }
-                break;
-            case COMPLETED:
-                if (current != ServiceTask.TaskStatus.IN_PROGRESS) {
-                    throw new TaskStatusException(current.name(), "complete");
-                }
-                break;
-            case PENDING:
-                // Use ValidationException for status logic violation
-                throw new ValidationException("Cannot transition back to PENDING status");
-        }
-    }
-
-    private ServiceTaskResponse mapToResponse(ServiceTask task) {
-        Long durationInHours = null;
-        if (task.getCompletedAt() != null && task.getStartedAt() != null) {
-            durationInHours = Duration.between(task.getStartedAt(), task.getCompletedAt()).toHours();
-        }
-
-        boolean isOverdue = false;
-        if (task.getDueTime() != null &&
-                (task.getStatus() == ServiceTask.TaskStatus.PENDING ||
-                        task.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)) {
-            isOverdue = task.getDueTime().isBefore(LocalDateTime.now());
-        }
-
-        return ServiceTaskResponse.builder()
-                .id(task.getId())
-                .motorcycleId(task.getMotorcycle().getId())
-                .motorcyclePlateNumber(task.getMotorcycle().getPlateNumber())
-                .technicianId(task.getTechnician().getId())
-                .technicianName(task.getTechnician().getFullName())
-                .issueType(task.getIssueType())
-                .description(task.getDescription())
-                .status(task.getStatus())
-                .assignedAt(task.getAssignedAt())
-                .startedAt(task.getStartedAt())
-                .completedAt(task.getCompletedAt())
-                .notes(task.getNotes())
-                .laborHours(task.getLaborHours())
-                .estimatedTime(task.getEstimatedTime())
-                .dueTime(task.getDueTime())
-                .createdAt(task.getCreatedAt())
-                .updatedAt(task.getUpdatedAt())
-                .durationInHours(durationInHours)
-                .isOverdue(isOverdue)
-                .build();
     }
 }

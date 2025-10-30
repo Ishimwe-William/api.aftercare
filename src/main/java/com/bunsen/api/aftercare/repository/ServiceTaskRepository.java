@@ -1,5 +1,6 @@
 package com.bunsen.api.aftercare.repository;
 
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.repository.base.BaseRepository;
 import org.springframework.data.domain.Page;
@@ -14,17 +15,17 @@ import java.util.List;
 @Repository
 public interface ServiceTaskRepository extends BaseRepository<ServiceTask, String> {
 
-    List<ServiceTask> findByStatus(ServiceTask.TaskStatus status);
+    List<ServiceTask> findByStatus(ETaskStatus status);
 
     List<ServiceTask> findByTechnicianId(String technicianId);
 
     List<ServiceTask> findByMotorcycleId(String motorcycleId);
 
     List<ServiceTask> findByTechnicianIdAndStatus(String technicianId,
-                                                  ServiceTask.TaskStatus status);
+                                                  ETaskStatus status);
 
     @Query("SELECT st FROM ServiceTask st WHERE st.status = :status AND st.assignedAt >= :startDate")
-    Page<ServiceTask> findByStatusAndAssignedAfter(@Param("status") ServiceTask.TaskStatus status,
+    Page<ServiceTask> findByStatusAndAssignedAfter(@Param("status") ETaskStatus status,
                                                    @Param("startDate") LocalDateTime startDate,
                                                    Pageable pageable);
 

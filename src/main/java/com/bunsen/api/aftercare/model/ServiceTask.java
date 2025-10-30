@@ -1,5 +1,6 @@
 package com.bunsen.api.aftercare.model;
 
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.model.base.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -38,7 +39,7 @@ public class ServiceTask extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private TaskStatus status = TaskStatus.PENDING;
+    private ETaskStatus status = ETaskStatus.PENDING;
 
     @Column(name = "assigned_at")
     private LocalDateTime assignedAt;
@@ -48,6 +49,9 @@ public class ServiceTask extends BaseEntity {
 
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -61,18 +65,11 @@ public class ServiceTask extends BaseEntity {
     @Column(name = "due_time")
     private LocalDateTime dueTime;
 
-    public enum TaskStatus {
-        PENDING,
-        IN_PROGRESS,
-        PAUSED,
-        COMPLETED
-    }
-
     @Override
     protected void onCreate() {
         super.onCreate();
         if (status == null) {
-            status = TaskStatus.PENDING;
+            status = ETaskStatus.PENDING;
         }
         if (laborHours == null) {
             laborHours = BigDecimal.ZERO;

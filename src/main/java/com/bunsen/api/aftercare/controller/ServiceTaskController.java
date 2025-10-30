@@ -1,11 +1,8 @@
 package com.bunsen.api.aftercare.controller;
 
-import com.bunsen.api.aftercare.dto.request.ServiceTaskRequest;
-import com.bunsen.api.aftercare.dto.request.TaskStatusUpdateRequest;
+import com.bunsen.api.aftercare.dto.ServiceTaskDTO.*;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
-import com.bunsen.api.aftercare.dto.response.ServiceTaskResponse;
-import com.bunsen.api.aftercare.dto.response.TaskStatisticsResponse;
-import com.bunsen.api.aftercare.model.ServiceTask;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.service.ServiceTaskService;
 import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
@@ -61,14 +58,14 @@ public class ServiceTaskController {
 
     @GetMapping("/status/{status}")
     public ResponseEntity<List<ServiceTaskResponse>> getTasksByStatus(
-            @PathVariable ServiceTask.TaskStatus status) {
+            @PathVariable ETaskStatus status) {
         return ResponseEntity.ok(serviceTaskService.getTasksByStatus(status));
     }
 
     @GetMapping("/technician/{technicianId}/status/{status}")
     public ResponseEntity<List<ServiceTaskResponse>> getTasksByTechnicianAndStatus(
             @PathVariable String technicianId,
-            @PathVariable ServiceTask.TaskStatus status) {
+            @PathVariable ETaskStatus status) {
         return ResponseEntity.ok(serviceTaskService.getTasksByTechnicianAndStatus(technicianId, status));
     }
 
@@ -134,8 +131,9 @@ public class ServiceTaskController {
     @PatchMapping("/{id}/status")
     public ResponseEntity<ServiceTaskResponse> updateTaskStatus(
             @PathVariable String id,
-            @Valid @RequestBody TaskStatusUpdateRequest request) {
-        return ResponseEntity.ok(serviceTaskService.updateTaskStatus(id, request));
+            @Valid @RequestBody TaskStatusUpdateRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
+        return ResponseEntity.ok(serviceTaskService.updateTaskStatus(id, request, principal));
     }
 
     @DeleteMapping("/{id}")

@@ -4,5 +4,6 @@ public enum ETaskStatus {
     PENDING,
     IN_PROGRESS,
     PAUSED,
+    CANCELLED,
     COMPLETED
 }
