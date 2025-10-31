@@ -1,12 +1,7 @@
 package com.bunsen.api.aftercare.controller;
 
-import com.bunsen.api.aftercare.dto.request.SparePartRequest;
-import com.bunsen.api.aftercare.dto.request.StockAdjustmentRequest;
-import com.bunsen.api.aftercare.dto.request.PartUsageRequest;
+import com.bunsen.api.aftercare.dto.SparePartDTO.*;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
-import com.bunsen.api.aftercare.dto.response.SparePartResponse;
-import com.bunsen.api.aftercare.dto.response.StockAlertResponse;
-import com.bunsen.api.aftercare.dto.response.PartUsageResponse;
 import com.bunsen.api.aftercare.service.SparePartService;
 import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;
@@ -135,6 +130,19 @@ public class SparePartController {
     @GetMapping("/statistics/most-used")
     public ResponseEntity<List<Map<String, Object>>> getMostUsedParts() {
         return ResponseEntity.ok(sparePartService.getMostUsedParts());
+    }
+
+    @PatchMapping("/usage/{usageId}")
+    public ResponseEntity<PartUsageResponse> updatePartUsage(
+            @PathVariable String usageId,
+            @Valid @RequestBody PartUsageRequest request) {
+        return ResponseEntity.ok(sparePartService.updatePartUsage(usageId, request));
+    }
+
+    @DeleteMapping("/usage/{usageId}")
+    public ResponseEntity<MessageResponse> deletePartUsage(@PathVariable String usageId) {
+        sparePartService.deletePartUsage(usageId);
+        return ResponseEntity.ok(new MessageResponse("Part usage deleted successfully"));
     }
 
     @GetMapping("/export")

@@ -176,72 +176,84 @@ public class ServiceTaskService {
 
     @Transactional
     public ServiceTaskResponse updateTaskStatus(String taskId, TaskStatusUpdateRequest request, UserDetailsImpl principal) {
-        logger.info("Updating task status for task: {} to {}", taskId, request.getStatus());
+        logger.info("Updating task for task: {}", taskId);
 
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
         ETaskStatus currentStatus = task.getStatus();
-        ETaskStatus newStatus = request.getStatus();
         String updaterId = principal.getId();
 
-        // Check for Admin role to determine if status transition rules can be bypassed
+        // Check for Admin role
         boolean isAdmin = principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        if (currentStatus == ETaskStatus.COMPLETED) {
-            // Generally, moving out of COMPLETED is disallowed
-            throw new TaskStatusException(currentStatus.name(), "update");
+        // Only process status change if status is provided in request
+        if (request.getStatus() != null) {
+            ETaskStatus newStatus = request.getStatus();
+
+            if (currentStatus == ETaskStatus.COMPLETED) {
+                throw new TaskStatusException(currentStatus.name(), "update");
+            }
+
+            // Only validate status transition if the user is NOT an Admin
+            if (!isAdmin) {
+                validationUtil.validateStatusTransition(currentStatus, newStatus);
+            }
+
+            switch (newStatus) {
+                case IN_PROGRESS:
+                    if (task.getStartedAt() == null) {
+                        task.setStartedAt(LocalDateTime.now());
+                    }
+                    task.setCancelledAt(null);
+                    break;
+                case COMPLETED:
+                    task.setCompletedAt(LocalDateTime.now());
+                    task.setCancelledAt(null);
+                    break;
+                case CANCELLED:
+                    task.setCancelledAt(LocalDateTime.now());
+                    task.setCompletedAt(null);
+                    break;
+                case PAUSED:
+                    // Log pause time if necessary
+                    break;
+                case PENDING:
+                    // If admin forces PENDING, clear start/complete/cancel times
+                    task.setStartedAt(null);
+                    task.setCompletedAt(null);
+                    task.setCancelledAt(null);
+                    break;
+            }
+
+            task.setStatus(newStatus);
+
+            // Log the status change
+            activityLogService.createLog(updaterId, "TASK_STATUS_CHANGE",
+                    String.format("Task %s status changed from %s to %s by user %s.",
+                            taskId, currentStatus, newStatus, updaterId));
         }
 
-        // Only validate status transition if the user is NOT an Admin
-        if (!isAdmin) {
-            validationUtil.validateStatusTransition(currentStatus, newStatus);
-        }
-
-        switch (newStatus) {
-            case IN_PROGRESS:
-                // Check if already started to avoid overwriting original start time
-                if (task.getStartedAt() == null) {
-                    task.setStartedAt(LocalDateTime.now());
-                }
-                task.setCancelledAt(null);
-                break;
-            case COMPLETED:
-                task.setCompletedAt(LocalDateTime.now());
-                task.setCancelledAt(null);
-                break; //
-            case CANCELLED:
-                task.setCancelledAt(LocalDateTime.now());
-                task.setCompletedAt(null);
-                break;
-            case PAUSED:
-                // Log pause time if necessary
-                break;
-            case PENDING:
-                // If admin forces PENDING, clear start/complete/cancel times
-                task.setStartedAt(null);
-                task.setCompletedAt(null);
-                task.setCancelledAt(null);
-                break;
-        }
-
-        task.setStatus(newStatus);
-
+        // Update notes if provided
         if (request.getNotes() != null) {
             task.setNotes(request.getNotes());
         }
 
+        // Update labor hours if provided
         if (request.getLaborHours() != null) {
             task.setLaborHours(request.getLaborHours());
+
+            // Log labor hours update only if status wasn't changed
+            if (request.getStatus() == null) {
+                activityLogService.createLog(updaterId, "TASK_LABOR_HOURS_UPDATE",
+                        String.format("Task %s labor hours updated to %s by user %s.",
+                                taskId, request.getLaborHours(), updaterId));
+            }
         }
 
         ServiceTask updatedTask = serviceTaskRepository.save(task);
-        logger.info("Task status updated successfully: {} -> {}", currentStatus, newStatus);
-
-        // Log the status change
-        activityLogService.createLog(updaterId, "TASK_STATUS_CHANGE",
-                String.format("Task %s status changed from %s to %s by user %s.", taskId, currentStatus, newStatus, updaterId));
+        logger.info("Task updated successfully: {}", taskId);
 
         return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
     }

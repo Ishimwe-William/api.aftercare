@@ -15,11 +15,8 @@ public class ServiceTaskDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TaskStatusUpdateRequest {
-        @NotNull(message = "Status is required")
         private ETaskStatus status;
-
         private String notes;
-
         private BigDecimal laborHours;
     }
 

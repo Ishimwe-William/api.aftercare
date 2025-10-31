@@ -1,11 +1,6 @@
 package com.bunsen.api.aftercare.service;
 
-import com.bunsen.api.aftercare.dto.request.PartUsageRequest;
-import com.bunsen.api.aftercare.dto.request.SparePartRequest;
-import com.bunsen.api.aftercare.dto.request.StockAdjustmentRequest;
-import com.bunsen.api.aftercare.dto.response.PartUsageResponse;
-import com.bunsen.api.aftercare.dto.response.SparePartResponse;
-import com.bunsen.api.aftercare.dto.response.StockAlertResponse;
+import com.bunsen.api.aftercare.dto.SparePartDTO.*;
 import com.bunsen.api.aftercare.exception.LowStockException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.ValidationException;
@@ -17,6 +12,7 @@ import com.bunsen.api.aftercare.model.embedded.SupplierInfo;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import com.bunsen.api.aftercare.repository.SparePartRepository;
 import com.bunsen.api.aftercare.repository.TaskPartUsageRepository;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -393,8 +389,75 @@ public class SparePartService {
                 .partId(usage.getPart().getId())
                 .partName(usage.getPart().getName())
                 .quantityUsed(usage.getQuantityUsed())
+                .cost(usage.getPart().getCost())
                 .notes(usage.getNotes())
                 .usedAt(usage.getUsedAt())
                 .build();
+    }
+
+    @Transactional
+    public PartUsageResponse updatePartUsage(String usageId, @Valid PartUsageRequest request) {
+        TaskPartUsage usage = taskPartUsageRepository.findByUsageId(usageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Part usage not found with id: " + usageId));
+
+        SparePart part = sparePartRepository.findById(request.getPartId())
+                .orElseThrow(() -> new ResourceNotFoundException("SparePart", "id", request.getPartId()));
+
+        // Calculate the difference in quantity
+        double oldQuantity = usage.getQuantityUsed();
+        double newQuantity = request.getQuantityUsed();
+        double quantityDifference = newQuantity - oldQuantity;
+
+        // If increasing usage, check if enough stock available
+        if (quantityDifference > 0) {
+            if (part.getQuantityAvailable() < quantityDifference) {
+                throw new LowStockException(part.getName(), part.getQuantityAvailable(), quantityDifference);
+            }
+            // Decrease stock by the additional amount
+            part.setQuantityAvailable(part.getQuantityAvailable() - quantityDifference);
+        } else if (quantityDifference < 0) {
+            // If decreasing usage, restore stock
+            part.setQuantityAvailable(part.getQuantityAvailable() + Math.abs(quantityDifference));
+        }
+
+        sparePartRepository.save(part);
+
+        // Update the usage record
+        usage.setQuantityUsed(newQuantity);
+        usage.setNotes(request.getNotes());
+        TaskPartUsage updated = taskPartUsageRepository.save(usage);
+
+        log.info("Updated part usage: {} x {} for task {}", newQuantity, part.getName(), usage.getTask().getId());
+
+        activityLogService.createLog(usage.getTask().getTechnician().getId(), "PART_USAGE_UPDATED",
+                String.format("Updated usage of part %s for task %s. Old quantity: %.2f, New quantity: %.2f",
+                        part.getName(), usage.getTask().getId(), oldQuantity, newQuantity));
+
+        return mapUsageToResponse(updated);
+    }
+
+    @Transactional
+    public void deletePartUsage(String usageId) {
+        TaskPartUsage usage = taskPartUsageRepository.findByUsageId(usageId)
+                .orElseThrow(() -> new ResourceNotFoundException("Part usage not found with id: " + usageId));
+
+        SparePart part = usage.getPart();
+
+        // Restore the stock when deleting usage
+        part.setQuantityAvailable(part.getQuantityAvailable() + usage.getQuantityUsed());
+        sparePartRepository.save(part);
+
+        String taskId = usage.getTask().getId();
+        String technicianId = usage.getTask().getTechnician().getId();
+        double quantityUsed = usage.getQuantityUsed();
+        String partName = part.getName();
+
+        taskPartUsageRepository.delete(usage);
+
+        log.info("Deleted part usage: {} x {} for task {}", quantityUsed, partName, taskId);
+
+        activityLogService.createLog(technicianId, "PART_USAGE_DELETED",
+                String.format("Deleted usage of %.2f units of part %s for task %s. Stock restored.",
+                        quantityUsed, partName, taskId));
     }
 }
