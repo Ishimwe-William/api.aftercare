@@ -1,6 +1,7 @@
 package com.bunsen.api.aftercare.model;
 
 import com.bunsen.api.aftercare.model.base.TimestampedEntity;
+import com.bunsen.api.aftercare.model.embedded.OwnerInfo;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,6 +26,32 @@ public class Invoice extends TimestampedEntity {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "task_id", nullable = false)
     private ServiceTask task;
+
+    // Static snapshot data - not affected by future changes
+    @Column(name = "motorcycle_model", length = 100)
+    private String motorcycleModel;
+
+    @Column(name = "motorcycle_phone", length = 100)
+    private String motorcycleOwnerPhone;
+    @Column(name = "motorcycle_owner_email", nullable = false)
+    private String motorcycleOwnerEmail;
+    @Column(name = "motorcycle_owner_name", length = 100)
+    private String motorcycleOwnerName;
+
+    @Column(name = "motorcycle_plate_number", length = 100)
+    private String motorcyclePlateNumber;
+
+    @Column(name = "technician_name", length = 255)
+    private String technicianName;
+
+    @Column(name = "issue_type", length = 100)
+    private String issueType;
+
+    @Column(name = "labor_hours", precision = 5, scale = 2)
+    private BigDecimal laborHours;
+
+    @Column(name = "labor_rate", precision = 10, scale = 2)
+    private BigDecimal laborRate;
 
     @Column(name = "labor_cost", nullable = false, precision = 10, scale = 2)
     private BigDecimal laborCost;

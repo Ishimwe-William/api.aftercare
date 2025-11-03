@@ -1,6 +1,6 @@
 package com.bunsen.api.aftercare.dto;
 
-import com.bunsen.api.aftercare.model.ServiceTask;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -24,7 +24,7 @@ public class MonitoringDTO {
         private String description;
         private String technician;
         private String technicianId;
-        private ServiceTask.TaskStatus status;
+        private ETaskStatus status;
         private Integer progress;
         private LocalDateTime startTime;
         private LocalDateTime endTime;
@@ -109,7 +109,7 @@ public class MonitoringDTO {
     @AllArgsConstructor
     @Builder
     public static class MonitoringFilter {
-        private ServiceTask.TaskStatus status;
+        private ETaskStatus status;
         private String dateRange;
         private String technicianId;
         private String motorcycleId;

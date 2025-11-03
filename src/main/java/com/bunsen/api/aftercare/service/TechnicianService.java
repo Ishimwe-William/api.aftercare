@@ -1,11 +1,8 @@
 package com.bunsen.api.aftercare.service;
 
-import com.bunsen.api.aftercare.dto.request.TechnicianPerformanceResponse;
-import com.bunsen.api.aftercare.dto.request.TechnicianRequest;
-import com.bunsen.api.aftercare.dto.request.TechnicianUpdateRequest;
-import com.bunsen.api.aftercare.dto.response.TechnicianResponse;
-import com.bunsen.api.aftercare.dto.response.TechnicianWorkloadResponse;
+import com.bunsen.api.aftercare.dto.TechnicianDTO.*;
 import com.bunsen.api.aftercare.enums.ERole;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.DuplicateResourceException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.ValidationException;
@@ -232,34 +229,74 @@ public class TechnicianService {
     public TechnicianPerformanceResponse getTechnicianPerformance(String id) {
         User technician = findTechnicianById(id);
 
+        // Get completed tasks
         List<ServiceTask> completedTasks = serviceTaskRepository.findByTechnicianIdAndStatus(
-                id, ServiceTask.TaskStatus.COMPLETED);
+                id, ETaskStatus.COMPLETED);
 
+        // Get active tasks
         List<ServiceTask> activeTasks = serviceTaskRepository.findByTechnicianId(id).stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.PENDING ||
-                        t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)
+                .filter(t -> t.getStatus() == ETaskStatus.PENDING ||
+                        t.getStatus() == ETaskStatus.IN_PROGRESS)
                 .toList();
 
+        // Count pending and in-progress tasks
         Long pendingCount = activeTasks.stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.PENDING)
+                .filter(t -> t.getStatus() == ETaskStatus.PENDING)
                 .count();
 
         Long inProgressCount = activeTasks.stream()
-                .filter(t -> t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS)
+                .filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS)
                 .count();
 
-        // Calculate average completion time
-        Double avgCompletionTime = completedTasks.stream()
+        // Separate completed tasks into on-time and overdue
+        List<ServiceTask> onTimeTasks = new ArrayList<>();
+        List<ServiceTask> overdueTasks = new ArrayList<>();
+
+        for (ServiceTask task : completedTasks) {
+            if (task.getCompletedAt() != null && task.getDueTime() != null) {
+                if (task.getCompletedAt().isAfter(task.getDueTime())) {
+                    overdueTasks.add(task);
+                } else {
+                    onTimeTasks.add(task);
+                }
+            } else if (task.getCompletedAt() != null) {
+                // If no due time set, consider it on-time
+                onTimeTasks.add(task);
+            }
+        }
+
+        // Calculate average completion time (from creation to completion)
+        double avgCompletionTime = completedTasks.stream()
                 .filter(t -> t.getCompletedAt() != null && t.getCreatedAt() != null)
                 .mapToDouble(t -> java.time.Duration.between(
                         t.getCreatedAt(), t.getCompletedAt()).toHours())
                 .average()
                 .orElse(0.0);
 
-        // Calculate efficiency score (tasks completed / total tasks assigned * 100)
+        // Calculate average delay for overdue tasks (how long after due time)
+        double avgDelay = overdueTasks.stream()
+                .filter(t -> t.getCompletedAt() != null && t.getDueTime() != null)
+                .mapToDouble(t -> java.time.Duration.between(
+                        t.getDueTime(), t.getCompletedAt()).toHours())
+                .average()
+                .orElse(0.0);
+
+        // Calculate on-time completion rate
+        double onTimeRate = completedTasks.isEmpty() ? 0.0 :
+                (onTimeTasks.size() * 100.0) / completedTasks.size();
+
+        // Calculate efficiency score with overdue penalty
         long totalAssigned = completedTasks.size() + activeTasks.size();
-        Double efficiencyScore = totalAssigned > 0 ?
+        double baseEfficiency = totalAssigned > 0 ?
                 (completedTasks.size() * 100.0) / totalAssigned : 0.0;
+
+        // Apply penalty for overdue tasks (reduce efficiency by overdue percentage)
+        double overduePenalty = completedTasks.isEmpty() ? 0.0 :
+                (overdueTasks.size() * 100.0) / completedTasks.size();
+
+        // Efficiency score: base efficiency reduced by half of the overdue penalty
+        // This ensures overdue tasks impact the score but don't completely nullify completion
+        double efficiencyScore = Math.max(0.0, baseEfficiency - (overduePenalty * 0.5));
 
         return TechnicianPerformanceResponse.builder()
                 .technicianId(technician.getId())
@@ -269,8 +306,12 @@ public class TechnicianService {
                 .activeTasks((long) activeTasks.size())
                 .pendingTasks(pendingCount)
                 .inProgressTasks(inProgressCount)
-                .averageCompletionTimeHours(avgCompletionTime)
-                .efficiencyScore(efficiencyScore)
+                .overdueTasksCount((long) overdueTasks.size())
+                .onTimeTasksCount((long) onTimeTasks.size())
+                .averageCompletionTimeHours(Math.round(avgCompletionTime * 100.0) / 100.0)
+                .averageDelayHours(Math.round(avgDelay * 100.0) / 100.0)
+                .efficiencyScore(Math.round(efficiencyScore * 100.0) / 100.0)
+                .onTimeCompletionRate(Math.round(onTimeRate * 100.0) / 100.0)
                 .build();
     }
 

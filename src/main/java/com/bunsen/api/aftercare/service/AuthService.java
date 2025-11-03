@@ -144,7 +144,7 @@ public class AuthService {
         logger.debug("Registering new user with input: {}", signupRequest);
         logger.debug("Attempting to register new user: {}", signupRequest.getEmail());
 
-        Optional<User> existingUser = userRepository.findByEmail(signupRequest.getEmail());
+        Optional<User> existingUser = userRepository.findByEmailIgnoreCase(signupRequest.getEmail());
 
         if (existingUser.isPresent()) {
             User user = existingUser.get();
@@ -258,7 +258,7 @@ public class AuthService {
         }
 
         String username = jwtUtils.getUserNameFromJwtToken(token);
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User","Username",username));
 
         if (user.isEnabled()) {
@@ -276,7 +276,7 @@ public class AuthService {
     public MessageResponse sendPasswordResetToken(String email) {
         logger.debug("Generating password reset token for email: {}", email);
 
-        Optional<User> userOptional = userRepository.findByEmail(email);
+        Optional<User> userOptional = userRepository.findByEmailIgnoreCase(email);
         if (userOptional.isEmpty()) {
             logger.info("Password reset requested for non-existent email: {}", email);
             return new MessageResponse("If the email is registered, a reset link will be sent.");
@@ -318,7 +318,7 @@ public class AuthService {
         }
 
         String username = jwtUtils.getUserNameFromJwtToken(token);
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         user.setPassword(encoder.encode(newPassword));
@@ -334,7 +334,7 @@ public class AuthService {
         }
 
         String username = jwtUtils.getUserNameFromJwtToken(refreshToken);
-        User user = userRepository.findByUsername(username)
+        User user = userRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (!user.isEnabled()) {
@@ -364,74 +364,76 @@ public class AuthService {
     public JwtResponse authenticateWithGoogle(String idToken) {
         try {
             GoogleIdToken token = googleTokenService.verifyToken(idToken);
-            GoogleIdToken.Payload payload = token.getPayload();
             GoogleTokenService.GoogleUserInfo userInfo = googleTokenService.getUserInfo(token);
 
             String email = userInfo.getEmail();
-            String name = (String) payload.get("name");
+            String name = userInfo.getName();
 
-            // Check if user already exists
-            Optional<User> existingUser = userRepository.findByEmail(email);
+            Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
 
             if (existingUser.isPresent()) {
                 User user = existingUser.get();
 
-                // Check if user is active (status should be true)
                 if (!user.isStatus()) {
                     logger.warn("Google authentication attempt by inactive user: {}", user.getUsername());
                     throw new BadRequestException("Account is inactive. Please contact support.");
                 }
 
-                if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
-                    user.setPhotoUrl(userInfo.getPictureUrl());
-                    userRepository.save(user);
-                    logger.info("Updated user photo url for user: {}", user.getUsername());
-                }
-                if (!user.getFullName().equalsIgnoreCase(name)) {
-                    user.setFullName(name);
-                    userRepository.save(user);
-                    logger.info("Updated user full name for user: {}", user.getUsername());
-                }
-                if (!user.isEnabled()) {
-                    user.setEnabled(true);
-                    userRepository.save(user);
-                    logger.info("Enabled user for user: {}", user.getUsername());
-                }
+                getGoogleUserInfo(userInfo, name, user);
                 return generateJwtForUser(user);
             }
 
-            User user = createUserFromGoogleInfo(userInfo);
-            // Generate a unique username within the size limit (0-20 characters)
-            String baseUsername = email.split("@")[0]; // Use local part of email
-            String username = baseUsername.length() > 20 ? baseUsername.substring(0, 20) : baseUsername;
-
-            // Ensure uniqueness
-            int counter = 1;
-            while (userRepository.findByUsername(username).isPresent()) {
-                String suffix = counter > 9 ? String.valueOf(counter) : "0" + counter;
-                username = (baseUsername.length() > 18 ? baseUsername.substring(0, 18) : baseUsername) + suffix;
-                counter++;
-            }
-
-            user.setUsername(username);
-
-            // Assign default role
-            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
-                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-            Set<Role> roles = new HashSet<>();
-            roles.add(userRole);
-            user.setPasswordChangeRequired(false);
-            user.setRoles(roles);
-            // Set status to true for new users (they are active by default)
+            // NEW USER - Create but don't save yet
+            User user = new User();
+            user.setEmail(userInfo.getEmail());
+            user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
+            user.setPhotoUrl(userInfo.getPictureUrl());
+            user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+            user.setEnabled(true);
             user.setStatus(true);
+            user.setPasswordChangeRequired(false);
 
-            userRepository.save(user);
+            // Generate username BEFORE saving
+            createNewUser(email, user);
 
+            Role userRole = roleRepository.findByName(ERole.ROLE_STAFF)
+                    .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
+            user.setRoles(Set.of(userRole));
+
+            userRepository.save(user);  // Save once with correct username
             return generateJwtForUser(user);
+
         } catch (Exception e) {
             logger.error("Google authentication failed: {}", e.getMessage());
             throw new RuntimeException("Invalid Google token", e);
         }
+    }
+
+    private void getGoogleUserInfo(GoogleTokenService.GoogleUserInfo userInfo, String name, User user) {
+        if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
+            user.setPhotoUrl(userInfo.getPictureUrl());
+        }
+        if (!user.getFullName().equalsIgnoreCase(name)) {
+            user.setFullName(name);
+        }
+        if (!user.isEnabled()) {
+            user.setEnabled(true);
+        }
+        userRepository.save(user);
+    }
+
+    private void createNewUser(String email, User user) {
+        String baseUsername = email.split("@")[0];
+        String username = baseUsername.length() > 20 ? baseUsername.substring(0, 20) : baseUsername;
+
+        int counter = 1;
+        while (userRepository.findByUsernameIgnoreCase(username).isPresent()) {
+            String suffix = counter > 9 ? String.valueOf(counter) : "0" + counter;
+            username = (baseUsername.length() > 18 ? baseUsername.substring(0, 18) : baseUsername) + suffix;
+            counter++;
+        }
+
+        user.setUsername(username);
     }
 
     @Transactional
@@ -470,7 +472,7 @@ public class AuthService {
             String email = userInfo.getEmail();
             String name = (String) payload.get("name");
 
-            Optional<User> existingUser = userRepository.findByEmail(email);
+            Optional<User> existingUser = userRepository.findByEmailIgnoreCase(email);
             User user;
 
             if (existingUser.isPresent()) {
@@ -483,16 +485,7 @@ public class AuthService {
                 }
 
                 // Update user info if necessary
-                if (user.getPhotoUrl() == null && userInfo.getPictureUrl() != null) {
-                    user.setPhotoUrl(userInfo.getPictureUrl());
-                }
-                if (!user.getFullName().equalsIgnoreCase(name)) {
-                    user.setFullName(name);
-                }
-                if (!user.isEnabled()) {
-                    user.setEnabled(true);
-                }
-                userRepository.save(user);
+                getGoogleUserInfo(userInfo, name, user);
             } else {
                 user = new User();
                 user.setEmail(email);
@@ -503,18 +496,7 @@ public class AuthService {
                 user.setStatus(true);
 
                 // Generate a unique username within the size limit (0-20 characters)
-                String baseUsername = email.split("@")[0]; // Use local part of email
-                String username = baseUsername.length() > 20 ? baseUsername.substring(0, 20) : baseUsername;
-
-                // Ensure uniqueness
-                int counter = 1;
-                while (userRepository.findByUsername(username).isPresent()) {
-                    String suffix = counter > 9 ? String.valueOf(counter) : "0" + counter;
-                    username = (baseUsername.length() > 18 ? baseUsername.substring(0, 18) : baseUsername) + suffix;
-                    counter++;
-                }
-
-                user.setUsername(username);
+                createNewUser(email, user);
                 // Assign default role
                 Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
                         .orElseThrow(() -> new RuntimeException("Role not found"));
@@ -534,21 +516,21 @@ public class AuthService {
         }
     }
 
-    private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
-        User user = new User();
-        user.setEmail(userInfo.getEmail());
-        user.setUsername(generateUniqueUsername(userInfo.getEmail().split("@")[0]));
-        user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
-        user.setPhotoUrl(userInfo.getPictureUrl());
-        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_TECHNICIAN).orElseThrow()));
-        user.setEnabled(true);
-        // Set status to true for new users (they are active by default)
-        user.setStatus(true);
-        user.setPasswordChangeRequired(false);
-
-        return userRepository.save(user);
-    }
+//    private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
+//        User user = new User();
+//        user.setEmail(userInfo.getEmail());
+//        user.setUsername(generateUniqueUsername(userInfo.getEmail().split("@")[0]));
+//        user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
+//        user.setPhotoUrl(userInfo.getPictureUrl());
+//        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+//        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_TECHNICIAN).orElseThrow()));
+//        user.setEnabled(true);
+//        // Set status to true for new users (they are active by default)
+//        user.setStatus(true);
+//        user.setPasswordChangeRequired(false);
+//
+//        return userRepository.save(user);
+//    }
 
     private JwtResponse generateJwtForUser(User user) {
         // Check if user is active before generating JWT
@@ -582,30 +564,30 @@ public class AuthService {
         return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt(), user.isPasswordChangeRequired(), user.isEnabled(), user.isStatus());
     }
 
-    private String generateUniqueUsername(String baseUsername) {
-        int attempts = 0;
-        final int maxAttempts = 10;
-        final int randomSuffixLength = 6;
-
-        // Try generating a username with a random suffix
-        while (attempts < maxAttempts) {
-            String randomSuffix = generateRandomString(randomSuffixLength);
-            String username = baseUsername + randomSuffix;
-            if (userRepository.findByUsername(username).isEmpty()) {
-                return username; // Return if unique
-            }
-            attempts++;
-        }
-
-        // Fallback to counter-method if random attempts fail
-        String username = baseUsername;
-        int counter = 1;
-        while (userRepository.findByUsername(username).isPresent()) {
-            username = baseUsername + counter;
-            counter++;
-        }
-        return username;
-    }
+//    private String generateUniqueUsername(String baseUsername) {
+//        int attempts = 0;
+//        final int maxAttempts = 10;
+//        final int randomSuffixLength = 6;
+//
+//        // Try generating a username with a random suffix
+//        while (attempts < maxAttempts) {
+//            String randomSuffix = generateRandomString(randomSuffixLength);
+//            String username = baseUsername + randomSuffix;
+//            if (userRepository.findByUsername(username).isEmpty()) {
+//                return username; // Return if unique
+//            }
+//            attempts++;
+//        }
+//
+//        // Fallback to counter-method if random attempts fail
+//        String username = baseUsername;
+//        int counter = 1;
+//        while (userRepository.findByUsername(username).isPresent()) {
+//            username = baseUsername + counter;
+//            counter++;
+//        }
+//        return username;
+//    }
 
     private String generateRandomString(int length) {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

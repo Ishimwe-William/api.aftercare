@@ -1,11 +1,7 @@
 package com.bunsen.api.aftercare.controller;
 
-import com.bunsen.api.aftercare.dto.request.TechnicianPerformanceResponse;
-import com.bunsen.api.aftercare.dto.request.TechnicianRequest;
-import com.bunsen.api.aftercare.dto.request.TechnicianUpdateRequest;
+import com.bunsen.api.aftercare.dto.TechnicianDTO.*;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
-import com.bunsen.api.aftercare.dto.response.TechnicianResponse;
-import com.bunsen.api.aftercare.dto.response.TechnicianWorkloadResponse;
 import com.bunsen.api.aftercare.service.TechnicianService;
 import com.bunsen.api.aftercare.service.UserDetailsImpl;
 import jakarta.validation.Valid;

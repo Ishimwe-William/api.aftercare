@@ -30,4 +30,6 @@ public interface MotorcycleRepository extends BaseRepository<Motorcycle, String>
 
     @Query("SELECT m FROM Motorcycle m WHERE m.lastServiceDate < :date OR m.lastServiceDate IS NULL")
     Page<Motorcycle> findMotorcyclesNeedingService(@Param("date") LocalDateTime date, Pageable pageable);
+
+    Optional<Motorcycle> findByPlateNumber(String plateNumber);
 }

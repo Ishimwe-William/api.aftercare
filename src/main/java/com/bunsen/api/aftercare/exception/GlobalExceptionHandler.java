@@ -22,8 +22,9 @@ import java.util.Map;
 @ControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private final EmailService emailService;
+
     @Value("${email.sender.username}")
-    private static String ADMIN_EMAIL;
+    private String adminEmail;
 
     public GlobalExceptionHandler(EmailService emailService) {
         this.emailService = emailService;
@@ -107,6 +108,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
      * Prepares and sends the critical error notification email to the administrator.
      */
     private void sendAdminNotificationEmail(Exception ex, WebRequest request) {
+        // Check if admin email is configured
+        if (adminEmail == null || adminEmail.trim().isEmpty()) {
+            System.err.println("Admin email not configured. Skipping error notification email.");
+            return;
+        }
+
         String timestamp = LocalDateTime.now().toString();
         String path = request.getDescription(false).replace("uri=", "");
 
@@ -133,7 +140,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         try {
             // Note: EmailService.sendEmail method signature is sendEmail(mailTo, senderName, subject, body)
-            emailService.sendEmail(ADMIN_EMAIL, "Aftercare API System", subject, body);
+            emailService.sendEmail(adminEmail, "Aftercare API System", subject, body);
         } catch (MessagingException mailEx) {
             // Log if the email sending itself failed, but do not stop the main request handling
             System.err.println("Failed to send 500 error notification email: " + mailEx.getMessage());

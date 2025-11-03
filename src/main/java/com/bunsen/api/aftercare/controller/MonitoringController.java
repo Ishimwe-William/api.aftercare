@@ -1,6 +1,7 @@
 package com.bunsen.api.aftercare.controller;
 
 import com.bunsen.api.aftercare.dto.MonitoringDTO.*;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.service.MonitoringService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,7 +39,7 @@ public class MonitoringController {
     ) {
         MonitoringFilter filter = new MonitoringFilter();
         if (status != null) {
-            filter.setStatus(com.bunsen.api.aftercare.model.ServiceTask.TaskStatus.valueOf(status.toUpperCase()));
+            filter.setStatus(ETaskStatus.valueOf(status.toUpperCase()));
         }
         filter.setTechnicianId(technicianId);
         filter.setMotorcycleId(motorcycleId);
@@ -63,7 +64,7 @@ public class MonitoringController {
     ) {
         MonitoringFilter filter = new MonitoringFilter();
         if (status != null) {
-            filter.setStatus(com.bunsen.api.aftercare.model.ServiceTask.TaskStatus.valueOf(status.toUpperCase()));
+            filter.setStatus(ETaskStatus.valueOf(status.toUpperCase()));
         }
         filter.setTechnicianId(technicianId);
         filter.setMotorcycleId(motorcycleId);

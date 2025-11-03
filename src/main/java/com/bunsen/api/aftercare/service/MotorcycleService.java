@@ -1,9 +1,7 @@
 package com.bunsen.api.aftercare.service;
 
-import com.bunsen.api.aftercare.dto.request.MotorcycleRequest;
-import com.bunsen.api.aftercare.dto.request.MotorcycleStatusUpdateRequest;
-import com.bunsen.api.aftercare.dto.response.MotorcycleResponse;
-import com.bunsen.api.aftercare.dto.response.MotorcycleStatisticsResponse;
+import com.bunsen.api.aftercare.dto.MotorcycleDTO.*;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.DuplicateResourceException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.ValidationException;
@@ -19,7 +17,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -198,7 +195,7 @@ public class MotorcycleService {
 
         List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleId(motorcycleId)
                 .stream()
-                .filter(task -> task.getStatus() != ServiceTask.TaskStatus.COMPLETED)
+                .filter(task -> task.getStatus() != ETaskStatus.COMPLETED)
                 .toList();
 
         if (!activeTasks.isEmpty()) {
@@ -245,7 +242,7 @@ public class MotorcycleService {
     private MotorcycleResponse mapToResponse(Motorcycle motorcycle) {
         List<ServiceTask> activeTasks = serviceTaskRepository.findByMotorcycleId(motorcycle.getId())
                 .stream()
-                .filter(task -> task.getStatus() != ServiceTask.TaskStatus.COMPLETED)
+                .filter(task -> task.getStatus() != ETaskStatus.COMPLETED)
                 .toList();
 
         boolean needsService;

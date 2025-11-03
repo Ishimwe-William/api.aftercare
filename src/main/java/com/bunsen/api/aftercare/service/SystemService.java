@@ -33,7 +33,7 @@ public class SystemService {
      */
     @PostConstruct
     public void initializeSystemUser() {
-        Optional<User> existingUser = userRepository.findByUsername(SYSTEM_USERNAME);
+        Optional<User> existingUser = userRepository.findByUsernameIgnoreCase(SYSTEM_USERNAME);
 
         if (existingUser.isEmpty()) {
             User newUser = createSystemUser();
@@ -71,7 +71,7 @@ public class SystemService {
     public User getSystemUser() {
         if (this.systemUser == null) {
             // Fallback to database lookup if @PostConstruct failed or object was cleared
-            this.systemUser = userRepository.findByUsername(SYSTEM_USERNAME)
+            this.systemUser = userRepository.findByUsernameIgnoreCase(SYSTEM_USERNAME)
                     .orElseThrow(() -> new RuntimeException("CRITICAL: SYSTEM_USER not found. Database integrity may be compromised."));
         }
         return this.systemUser;

@@ -1,10 +1,7 @@
 package com.bunsen.api.aftercare.controller;
 
-import com.bunsen.api.aftercare.dto.request.MotorcycleRequest;
-import com.bunsen.api.aftercare.dto.request.MotorcycleStatusUpdateRequest;
+import com.bunsen.api.aftercare.dto.MotorcycleDTO.*;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
-import com.bunsen.api.aftercare.dto.response.MotorcycleResponse;
-import com.bunsen.api.aftercare.dto.response.MotorcycleStatisticsResponse;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.service.MotorcycleService;
 import com.bunsen.api.aftercare.service.UserDetailsImpl;

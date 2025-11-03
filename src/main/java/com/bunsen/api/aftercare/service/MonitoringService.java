@@ -1,6 +1,7 @@
 package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.MonitoringDTO.*;
+import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.BadRequestException;
 import com.bunsen.api.aftercare.exception.ValidationException;
@@ -116,7 +117,7 @@ public class MonitoringService {
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", request.getTaskId()));
 
         // Validate task can be reassigned
-        if (task.getStatus() == ServiceTask.TaskStatus.COMPLETED) {
+        if (task.getStatus() == ETaskStatus.COMPLETED) {
             throw new BadRequestException("Cannot reassign completed tasks");
         }
 
@@ -175,7 +176,7 @@ public class MonitoringService {
         }
 
         // Find high priority in-progress tasks
-        List<ServiceTask> inProgressTasks = serviceTaskRepository.findByStatus(ServiceTask.TaskStatus.IN_PROGRESS);
+        List<ServiceTask> inProgressTasks = serviceTaskRepository.findByStatus(ETaskStatus.IN_PROGRESS);
         for (ServiceTask task : inProgressTasks) {
             if (task.getDueTime() != null && task.getDueTime().isBefore(now.plusHours(2))) {
                 AlertResponse alert = new AlertResponse();
@@ -197,12 +198,12 @@ public class MonitoringService {
         LocalDateTime now = LocalDateTime.now();
 
         long total = allTasks.size();
-        long pending = allTasks.stream().filter(t -> t.getStatus() == ServiceTask.TaskStatus.PENDING).count();
-        long inProgress = allTasks.stream().filter(t -> t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS).count();
-        long completed = allTasks.stream().filter(t -> t.getStatus() == ServiceTask.TaskStatus.COMPLETED).count();
+        long pending = allTasks.stream().filter(t -> t.getStatus() == ETaskStatus.PENDING).count();
+        long inProgress = allTasks.stream().filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS).count();
+        long completed = allTasks.stream().filter(t -> t.getStatus() == ETaskStatus.COMPLETED).count();
         long overdue = allTasks.stream()
                 .filter(t -> t.getDueTime() != null && t.getDueTime().isBefore(now)
-                        && (t.getStatus() == ServiceTask.TaskStatus.PENDING || t.getStatus() == ServiceTask.TaskStatus.IN_PROGRESS))
+                        && (t.getStatus() == ETaskStatus.PENDING || t.getStatus() == ETaskStatus.IN_PROGRESS))
                 .count();
 
         Double avgCompletionTime = serviceTaskRepository.calculateAverageCompletionTimeInHours();

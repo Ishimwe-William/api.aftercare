@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface TaskPartUsageRepository extends TimestampedRepository<TaskPartUsage, String> {
@@ -20,4 +21,6 @@ public interface TaskPartUsageRepository extends TimestampedRepository<TaskPartU
 
     @Query("SELECT SUM(tpu.quantityUsed) FROM TaskPartUsage tpu WHERE tpu.part.id = :partId")
     Long getTotalQuantityUsedForPart(@Param("partId") String partId);
+
+    Optional<TaskPartUsage> findByUsageId(String usageId);
 }
