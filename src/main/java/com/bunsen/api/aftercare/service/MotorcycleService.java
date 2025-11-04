@@ -46,11 +46,11 @@ public class MotorcycleService {
 
     @Transactional
     public MotorcycleResponse createMotorcycle(MotorcycleRequest request, String creatorId) {
-        logger.info("Creating new motorcycle with QR code: {}", request.getQrCode());
+        logger.info("Creating new motorcycle with Barcode: {}", request.getQrCode());
 
         // Use DuplicateResourceException
         if (motorcycleRepository.existsByQrCode(request.getQrCode())) {
-            throw new DuplicateResourceException("Motorcycle", "qrCode", request.getQrCode());
+            throw new DuplicateResourceException("Motorcycle", "Barcode", request.getQrCode());
         }
 
         Motorcycle motorcycle = new Motorcycle();
@@ -70,7 +70,7 @@ public class MotorcycleService {
         logger.info("Motorcycle created successfully with ID: {}", savedMotorcycle.getId());
 
         activityLogService.createLog(creatorId, "MOTORCYCLE_REGISTERED",
-                String.format("New motorcycle %s registered with QR code %s.", savedMotorcycle.getPlateNumber(), savedMotorcycle.getQrCode()));
+                String.format("New motorcycle %s registered with Barcode %s.", savedMotorcycle.getPlateNumber(), savedMotorcycle.getQrCode()));
 
         return mapToResponse(savedMotorcycle);
     }
@@ -87,7 +87,7 @@ public class MotorcycleService {
     public MotorcycleResponse getMotorcycleByQrCode(String qrCode) {
         // Use ResourceNotFoundException with full details
         Motorcycle motorcycle = motorcycleRepository.findByQrCode(qrCode)
-                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "qrCode", qrCode));
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "Barcode", qrCode));
         return mapToResponse(motorcycle);
     }
 
@@ -141,7 +141,7 @@ public class MotorcycleService {
         if (!request.getQrCode().equals(motorcycle.getQrCode())) {
             // Use DuplicateResourceException
             if (motorcycleRepository.existsByQrCode(request.getQrCode())) {
-                throw new DuplicateResourceException("Motorcycle", "qrCode", request.getQrCode());
+                throw new DuplicateResourceException("Motorcycle", "Barcode", request.getQrCode());
             }
             motorcycle.setQrCode(request.getQrCode());
         }
