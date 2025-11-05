@@ -4,6 +4,7 @@ import com.bunsen.api.aftercare.dto.ServiceTaskDTO.*;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
+import com.bunsen.api.aftercare.exception.UnauthorizedException;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.model.User;
@@ -54,6 +55,17 @@ public class ServiceTaskService {
     @Transactional
     public ServiceTaskResponse createTask(ServiceTaskRequest request, String creatorId) {
         logger.info("Creating new service task for motorcycle: {}", request.getMotorcycleId());
+
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorId));
+
+        // Check if creator is admin or the assigned technician
+        boolean isAdmin = creator.getRoles().stream()
+                .anyMatch(role -> role.getName().name().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !creatorId.equals(request.getTechnicianId())) {
+            throw new UnauthorizedException("Technicians can only create tasks for themselves");
+        }
 
         Motorcycle motorcycle = motorcycleRepository.findById(request.getMotorcycleId())
                 .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", request.getMotorcycleId()));
@@ -121,15 +133,22 @@ public class ServiceTaskService {
     public List<ServiceTaskResponse> getTasksByTechnicianAndStatus(String technicianId,
                                                                    ETaskStatus status) {
         return serviceTaskRepository.findByTechnicianIdAndStatus(technicianId, status).stream()
-                .map(entityMapperUtil::mapToServiceTaskResponse) // Use EntityMapperUtil
+                .map(entityMapperUtil::mapToServiceTaskResponse)
                 .collect(Collectors.toList());
     }
     @Transactional
-    public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request, String updaterId) {
+    public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request, UserDetailsImpl principal) {
         logger.info("Updating service task: {}", taskId);
 
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
+
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin && !principal.getId().equals(task.getTechnician().getId())) {
+            throw new UnauthorizedException("You can only update your own tasks");
+        }
 
         if (task.getStatus() == ETaskStatus.COMPLETED) {
             throw new TaskStatusException(task.getStatus().name(), "update");
@@ -164,7 +183,7 @@ public class ServiceTaskService {
         logger.info("Service task updated successfully: {}", taskId);
 
         if (!updatedTask.getTechnician().getId().equals(oldTechnicianId)) {
-            activityLogService.createLog(updaterId, "TASK_REASSIGNED",
+            activityLogService.createLog(principal.getId(), "TASK_REASSIGNED",
                     String.format("Task %s reassigned from %s to %s during update.", taskId, oldTechnicianId, updatedTask.getTechnician().getId()));
         } else {
             activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_UPDATED",

@@ -110,9 +110,9 @@ public class ServiceTaskController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ServiceTaskResponse> createTask(@Valid @RequestBody ServiceTaskRequest request,
-                                                          @AuthenticationPrincipal UserDetailsImpl principal) {
+    public ResponseEntity<ServiceTaskResponse> createTask(
+            @Valid @RequestBody ServiceTaskRequest request,
+            @AuthenticationPrincipal UserDetailsImpl principal) {
         String creatorId = principal.getId();
         ServiceTaskResponse response = serviceTaskService.createTask(request, creatorId);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
@@ -124,8 +124,7 @@ public class ServiceTaskController {
             @PathVariable String id,
             @Valid @RequestBody ServiceTaskRequest request,
             @AuthenticationPrincipal UserDetailsImpl principal) {
-        String updaterId = principal.getId();
-        return ResponseEntity.ok(serviceTaskService.updateTask(id, request, updaterId));
+        return ResponseEntity.ok(serviceTaskService.updateTask(id, request, principal));
     }
 
     @PatchMapping("/{id}/status")

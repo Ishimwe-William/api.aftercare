@@ -29,7 +29,7 @@ public class MotorcycleService {
 
     private final MotorcycleRepository motorcycleRepository;
     private final ServiceTaskRepository serviceTaskRepository;
-    private final ActivityLogService activityLogService; // Inject ActivityLogService
+    private final ActivityLogService activityLogService;
 
     public MotorcycleService(MotorcycleRepository motorcycleRepository,
                              ServiceTaskRepository serviceTaskRepository,
