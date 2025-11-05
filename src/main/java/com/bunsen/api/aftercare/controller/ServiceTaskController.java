@@ -99,6 +99,16 @@ public class ServiceTaskController {
                 technicianId, startDate, endDate, pageable));
     }
 
+    @GetMapping("/date-range")
+    public ResponseEntity<Page<ServiceTaskResponse>> getAllTasksInDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(serviceTaskService.getAllTasksInDateRange(startDate, endDate, pageable));
+    }
+
     @GetMapping("/statistics")
     public ResponseEntity<TaskStatisticsResponse> getTaskStatistics() {
         return ResponseEntity.ok(serviceTaskService.getTaskStatistics());

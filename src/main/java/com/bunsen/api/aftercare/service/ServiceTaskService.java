@@ -365,4 +365,12 @@ public class ServiceTaskService {
     public Long getCompletedTaskCountByTechnician(String technicianId) {
         return serviceTaskRepository.countCompletedTasksByTechnician(technicianId);
     }
+
+    @Transactional(readOnly = true)
+    public Page<ServiceTaskResponse> getAllTasksInDateRange(LocalDateTime startDate,
+                                                            LocalDateTime endDate,
+                                                            Pageable pageable) {
+        return serviceTaskRepository.findAllTasksInDateRange(startDate, endDate, pageable)
+                .map(entityMapperUtil::mapToServiceTaskResponse);
+    }
 }

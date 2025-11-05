@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.nio.channels.FileChannel;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -50,4 +51,9 @@ public interface ServiceTaskRepository extends BaseRepository<ServiceTask, Strin
             "FROM ServiceTask st " +
             "WHERE st.status = 'COMPLETED' AND st.completedAt IS NOT NULL")
     Double calculateAverageCompletionTimeInHours();
+
+    @Query("SELECT st FROM ServiceTask st WHERE st.completedAt BETWEEN :startDate AND :endDate")
+    Page<ServiceTask> findAllTasksInDateRange(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate,
+                                              Pageable pageable);
 }
