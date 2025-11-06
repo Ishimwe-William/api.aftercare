@@ -61,6 +61,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/parts/**").hasAnyRole("ADMIN", "TECHNICIAN", "STAFF")
                         .requestMatchers("/api/invoices/**").hasAnyRole("ADMIN", "TECHNICIAN", "CUSTOMER")
                         .requestMatchers("/api/activity-logs/**").hasAnyRole("ADMIN", "TECHNICIAN")
+                        .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(authTokenFilter, UsernamePasswordAuthenticationFilter.class);

@@ -12,11 +12,12 @@ import com.bunsen.api.aftercare.repository.MotorcycleRepository;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
 import com.bunsen.api.aftercare.util.EntityMapperUtil;
-import com.bunsen.api.aftercare.util.ValidationUtil; // Imported
+import com.bunsen.api.aftercare.util.ValidationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,19 +38,21 @@ public class ServiceTaskService {
     private final ActivityLogService activityLogService;
     private final EntityMapperUtil entityMapperUtil;
     private final ValidationUtil validationUtil;
+    private final SimpMessagingTemplate messagingTemplate;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
                               MotorcycleRepository motorcycleRepository,
                               ActivityLogService activityLogService,
                               EntityMapperUtil entityMapperUtil,
-                              ValidationUtil validationUtil) {
+                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
         this.activityLogService = activityLogService;
         this.entityMapperUtil = entityMapperUtil;
         this.validationUtil = validationUtil;
+        this.messagingTemplate = messagingTemplate;
     }
 
     @Transactional
@@ -274,7 +277,13 @@ public class ServiceTaskService {
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Task updated successfully: {}", taskId);
 
-        return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
+        // 🎯 FIX: Map the entity to the DTO *before* sending via websocket
+        ServiceTaskResponse responseDTO = entityMapperUtil.mapToServiceTaskResponse(updatedTask);
+
+        // Send the DTO instead of the raw entity to prevent serialization errors
+        messagingTemplate.convertAndSend("/topic/tasks", responseDTO);
+
+        return responseDTO;
     }
 
     @Transactional

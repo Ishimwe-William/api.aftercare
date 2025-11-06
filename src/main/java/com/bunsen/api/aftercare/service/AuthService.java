@@ -2,8 +2,10 @@ package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.request.LoginRequest;
 import com.bunsen.api.aftercare.dto.request.SignupRequest;
+import com.bunsen.api.aftercare.dto.request.UserManagementRequest;
 import com.bunsen.api.aftercare.dto.response.JwtResponse;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
+import com.bunsen.api.aftercare.dto.response.UserResponse;
 import com.bunsen.api.aftercare.enums.ERole;
 import com.bunsen.api.aftercare.exception.BadRequestException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
@@ -14,6 +16,7 @@ import com.bunsen.api.aftercare.repository.UserRepository;
 import com.bunsen.api.aftercare.security.jwt.JwtUtils;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.mail.MessagingException;
+import jakarta.validation.Valid;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -516,22 +519,6 @@ public class AuthService {
         }
     }
 
-//    private User createUserFromGoogleInfo(GoogleTokenService.GoogleUserInfo userInfo) {
-//        User user = new User();
-//        user.setEmail(userInfo.getEmail());
-//        user.setUsername(generateUniqueUsername(userInfo.getEmail().split("@")[0]));
-//        user.setFullName(userInfo.getName() != null ? userInfo.getName() : "Google User");
-//        user.setPhotoUrl(userInfo.getPictureUrl());
-//        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
-//        user.setRoles(Set.of(roleRepository.findByName(ERole.ROLE_TECHNICIAN).orElseThrow()));
-//        user.setEnabled(true);
-//        // Set status to true for new users (they are active by default)
-//        user.setStatus(true);
-//        user.setPasswordChangeRequired(false);
-//
-//        return userRepository.save(user);
-//    }
-
     private JwtResponse generateJwtForUser(User user) {
         // Check if user is active before generating JWT
         if (!user.isStatus()) {
@@ -564,31 +551,6 @@ public class AuthService {
         return new JwtResponse(jwt, refreshToken, user.getId(), user.getFullName(), user.getUsername(), user.getEmail(), roles, user.getPhoneNumber(), user.getPhotoUrl(), user.getUpdatedAt(), user.isPasswordChangeRequired(), user.isEnabled(), user.isStatus());
     }
 
-//    private String generateUniqueUsername(String baseUsername) {
-//        int attempts = 0;
-//        final int maxAttempts = 10;
-//        final int randomSuffixLength = 6;
-//
-//        // Try generating a username with a random suffix
-//        while (attempts < maxAttempts) {
-//            String randomSuffix = generateRandomString(randomSuffixLength);
-//            String username = baseUsername + randomSuffix;
-//            if (userRepository.findByUsername(username).isEmpty()) {
-//                return username; // Return if unique
-//            }
-//            attempts++;
-//        }
-//
-//        // Fallback to counter-method if random attempts fail
-//        String username = baseUsername;
-//        int counter = 1;
-//        while (userRepository.findByUsername(username).isPresent()) {
-//            username = baseUsername + counter;
-//            counter++;
-//        }
-//        return username;
-//    }
-
     private String generateRandomString(int length) {
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         SecureRandom random = new SecureRandom();
@@ -614,5 +576,62 @@ public class AuthService {
 
         databaseJwtBlacklistService.blacklistToken(token);
         logger.info("User logged out successfully");
+    }
+
+    public UserResponse getUserById(String userId) {
+        logger.debug("Fetching user profile for ID: {}", userId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        return getUserResponse(user);
+    }
+
+    private UserResponse getUserResponse(User user) {
+        List<String> roles = user.getRoles().stream()
+                .map(role -> role.getName().name())
+                .toList();
+
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .phoneNumber(user.getPhoneNumber())
+                .photoUrl(user.getPhotoUrl())
+                .enabled(user.isEnabled())
+                .status(user.isStatus())
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+
+
+    @Transactional
+    public UserResponse updateProfile(String userId, @Valid UserManagementRequest request) {
+        logger.debug("Updating profile for user ID: {} with request: {}", userId, request);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        // Update basic profile information
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+        }
+
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+
+        if (request.getPhotoUrl() != null) {
+            user.setPhotoUrl(request.getPhotoUrl());
+        }
+
+        // Save the updated user
+        user = userRepository.save(user);
+        logger.info("Profile updated successfully for user: {}", user.getUsername());
+
+        // Return the updated user response
+        return getUserResponse(user);
     }
 }

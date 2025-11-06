@@ -1,5 +1,6 @@
 package com.bunsen.api.aftercare.service;
 
+import com.bunsen.api.aftercare.dto.ActivityLogDTO;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.model.ActivityLog;
 import com.bunsen.api.aftercare.model.User;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ActivityLogService {
@@ -25,7 +27,7 @@ public class ActivityLogService {
     }
 
     @Transactional
-    public ActivityLog createLog(String userId, String action, String details) {
+    public void createLog(String userId, String action, String details) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         ActivityLog log = new ActivityLog();
@@ -34,32 +36,55 @@ public class ActivityLogService {
         log.setAction(action);
         log.setDetails(details);
         log.setTimestamp(LocalDateTime.now());
-        return activityLogRepository.save(log);
+        activityLogRepository.save(log);
     }
 
     @Transactional(readOnly = true)
-    public Page<ActivityLog> getLogsBetweenDates(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        return activityLogRepository.findLogsBetween(startDate, endDate, pageable);
+    public Page<ActivityLogDTO> getLogsBetweenDates(LocalDateTime startDate, LocalDateTime endDate,
+                                                    String action, String userId, Pageable pageable) {
+        Page<ActivityLog> logs;
+
+        if (action != null && userId != null) {
+            logs = activityLogRepository.findByTimestampBetweenAndActionAndUserId(
+                    startDate, endDate, action, userId, pageable);
+        } else if (action != null) {
+            logs = activityLogRepository.findByTimestampBetweenAndAction(
+                    startDate, endDate, action, pageable);
+        } else if (userId != null) {
+            logs = activityLogRepository.findByTimestampBetweenAndUserId(
+                    startDate, endDate, userId, pageable);
+        } else {
+            logs = activityLogRepository.findLogsBetween(startDate, endDate, pageable);
+        }
+
+        return logs.map(ActivityLogDTO::fromEntity);
     }
 
     @Transactional(readOnly = true)
-    public List<ActivityLog> getLogsByUser(String userId) {
-        return activityLogRepository.findByUserId(userId);
+    public Page<ActivityLogDTO> getRecentLogs(String action, String userId, Pageable pageable) {
+        Page<ActivityLog> logs;
+
+        if (action != null && userId != null) {
+            logs = activityLogRepository.findByActionAndUserIdOrderByTimestampDesc(action, userId, pageable);
+        } else if (action != null) {
+            logs = activityLogRepository.findByActionOrderByTimestampDesc(action, pageable);
+        } else if (userId != null) {
+            logs = activityLogRepository.findByUserIdOrderByTimestampDesc(userId, pageable);
+        } else {
+            logs = activityLogRepository.findRecentLogs(pageable);
+        }
+
+        return logs.map(ActivityLogDTO::fromEntity);
     }
 
     @Transactional(readOnly = true)
-    public List<Object[]> getMostCommonActions() {
-        return activityLogRepository.findMostCommonActions();
+    public List<ActivityLogDTO> getLogsByUser(String userId) {
+        return activityLogRepository.findByUserId(userId).stream()
+                .map(ActivityLogDTO::fromEntity)
+                .collect(Collectors.toList());
     }
 
-    /**
-     * Reassigns all activity logs from one user to another.
-     * This method is critical for maintaining referential integrity during user deletion.
-     * * @param oldUserId The ID of the user being deleted.
-     * @param newUserId The ID of the new user (SYSTEM_USER) to inherit the logs.
-     * @return The number of records updated.
-     */
-    @Transactional // Required because the repository uses @Modifying
+    @Transactional
     public int reassignLogs(String oldUserId, String newUserId) {
         return activityLogRepository.reassignLogs(oldUserId, newUserId);
     }

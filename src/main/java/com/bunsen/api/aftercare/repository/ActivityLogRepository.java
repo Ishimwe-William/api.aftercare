@@ -17,8 +17,6 @@ import java.util.List;
 public interface ActivityLogRepository extends TimestampedRepository<ActivityLog, String> {
     List<ActivityLog> findByUserId(String userId);
 
-    // Custom query to update the user_id column for all logs created by the deleted user.
-    // NOTE: Requires @Modifying and @Transactional at the service level.
     @Modifying
     @Query("UPDATE ActivityLog a SET a.user.id = :newUserId WHERE a.user.id = :oldUserId")
     int reassignLogs(String oldUserId, String newUserId);
@@ -40,4 +38,20 @@ public interface ActivityLogRepository extends TimestampedRepository<ActivityLog
 
     @Query("SELECT al FROM ActivityLog al ORDER BY al.timestamp DESC")
     Page<ActivityLog> findRecentLogs(Pageable pageable);
+
+    // New filtering queries
+    Page<ActivityLog> findByActionOrderByTimestampDesc(String action, Pageable pageable);
+
+    Page<ActivityLog> findByUserIdOrderByTimestampDesc(String userId, Pageable pageable);
+
+    Page<ActivityLog> findByActionAndUserIdOrderByTimestampDesc(String action, String userId, Pageable pageable);
+
+    Page<ActivityLog> findByTimestampBetweenAndAction(LocalDateTime startDate, LocalDateTime endDate,
+                                                      String action, Pageable pageable);
+
+    Page<ActivityLog> findByTimestampBetweenAndUserId(LocalDateTime startDate, LocalDateTime endDate,
+                                                      String userId, Pageable pageable);
+
+    Page<ActivityLog> findByTimestampBetweenAndActionAndUserId(LocalDateTime startDate, LocalDateTime endDate,
+                                                               String action, String userId, Pageable pageable);
 }
