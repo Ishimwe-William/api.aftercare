@@ -32,7 +32,9 @@ public class MonitoringDTO {
         private BigDecimal laborHours;
         private Integer estimatedTime;
         private LocalDateTime dueTime;
+        private LocalDateTime createdAt;
         private String notes;
+
     }
 
     @Data

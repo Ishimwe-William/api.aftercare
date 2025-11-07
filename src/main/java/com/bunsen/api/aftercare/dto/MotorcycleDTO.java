@@ -9,6 +9,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.checkerframework.common.aliasing.qual.Unique;
 
 import java.time.LocalDateTime;
 
@@ -21,6 +22,7 @@ public class MotorcycleDTO {
 
         @NotBlank(message = "QR code is required")
         @Size(max = 255, message = "QR code must not exceed 255 characters")
+        @Unique
         private String qrCode;
 
         @NotBlank(message = "Model is required")
@@ -28,6 +30,7 @@ public class MotorcycleDTO {
         private String model;
 
         @Size(max = 100, message = "Plate number must not exceed 100 characters")
+        @Unique
         private String plateNumber;
 
         @Size(max = 100, message = "Owner name must not exceed 100 characters")

@@ -24,7 +24,7 @@ public class Motorcycle extends BaseEntity {
     @Column(name = "model", length = 100, nullable = false)
     private String model;
 
-    @Column(name = "plate_number", length = 100)
+    @Column(name = "plate_number", length = 100, unique = true, nullable = false)
     private String plateNumber;
 
     @Embedded

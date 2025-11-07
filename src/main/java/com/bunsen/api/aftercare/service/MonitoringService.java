@@ -9,14 +9,13 @@ import com.bunsen.api.aftercare.model.*;
 import com.bunsen.api.aftercare.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -30,7 +29,6 @@ public class MonitoringService {
     private final InvoiceRepository invoiceRepository;
     private final TaskPartUsageRepository taskPartUsageRepository;
     private final TechnicianRepository technicianRepository;
-    private final MotorcycleRepository motorcycleRepository;
 
     @Transactional(readOnly = true)
     public Page<ServiceCaseResponse> getServiceCases(MonitoringFilter filter, Pageable pageable) {
@@ -39,15 +37,24 @@ public class MonitoringService {
         if (filter.getStatus() != null && filter.getStartDate() != null) {
             tasks = serviceTaskRepository.findByStatusAndAssignedAfter(
                     filter.getStatus(), filter.getStartDate(), pageable);
+            return tasks.map(this::mapToServiceCaseResponse);
         } else if (filter.getStatus() != null) {
-            tasks = serviceTaskRepository.findAll(pageable);
-            tasks = tasks.map(task -> task.getStatus() == filter.getStatus() ? task : null)
-                    .map(t -> t);
+            Page<ServiceTask> allTasks = serviceTaskRepository.findAll(pageable);
+
+            List<ServiceCaseResponse> filteredResponses = allTasks.getContent().stream()
+                    .filter(task -> task.getStatus() == filter.getStatus())
+                    .map(this::mapToServiceCaseResponse)
+                    .toList();
+            return new PageImpl<>(
+                    filteredResponses,
+                    pageable,
+                    allTasks.getTotalElements()
+            );
+
         } else {
             tasks = serviceTaskRepository.findAll(pageable);
+            return tasks.map(this::mapToServiceCaseResponse);
         }
-
-        return tasks.map(this::mapToServiceCaseResponse);
     }
 
     @Transactional(readOnly = true)
@@ -308,6 +315,7 @@ public class MonitoringService {
         response.setEstimatedTime(task.getEstimatedTime());
         response.setDueTime(task.getDueTime());
         response.setNotes(task.getNotes());
+        response.setCreatedAt(task.getCreatedAt());
 
         MotorcycleInfo motorcycleInfo = new MotorcycleInfo();
         Motorcycle motorcycle = task.getMotorcycle();
