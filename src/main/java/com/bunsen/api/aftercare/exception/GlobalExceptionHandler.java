@@ -140,7 +140,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         try {
             // Note: EmailService.sendEmail method signature is sendEmail(mailTo, senderName, subject, body)
-            emailService.sendEmail(adminEmail, "Aftercare API System", subject, body);
+            emailService.sendEmail(adminEmail, "Aftercare App", subject, body);
         } catch (MessagingException mailEx) {
             // Log if the email sending itself failed, but do not stop the main request handling
             System.err.println("Failed to send 500 error notification email: " + mailEx.getMessage());

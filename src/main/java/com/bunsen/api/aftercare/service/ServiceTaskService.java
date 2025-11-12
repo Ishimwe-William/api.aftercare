@@ -39,13 +39,14 @@ public class ServiceTaskService {
     private final EntityMapperUtil entityMapperUtil;
     private final ValidationUtil validationUtil;
     private final SimpMessagingTemplate messagingTemplate;
+    private final EmailService emailService;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
                               MotorcycleRepository motorcycleRepository,
                               ActivityLogService activityLogService,
                               EntityMapperUtil entityMapperUtil,
-                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate) {
+                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
@@ -53,6 +54,7 @@ public class ServiceTaskService {
         this.entityMapperUtil = entityMapperUtil;
         this.validationUtil = validationUtil;
         this.messagingTemplate = messagingTemplate;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -62,7 +64,6 @@ public class ServiceTaskService {
         User creator = userRepository.findById(creatorId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorId));
 
-        // Check if creator is admin or the assigned technician
         boolean isAdmin = creator.getRoles().stream()
                 .anyMatch(role -> role.getName().name().equals("ROLE_ADMIN"));
 
@@ -94,6 +95,9 @@ public class ServiceTaskService {
 
         activityLogService.createLog(creatorId, "TASK_CREATED",
                 String.format("Service task %s created and assigned to %s.", savedTask.getId(), technician.getFullName()));
+
+        // Send email notification to assigned technician
+        sendTaskAssignmentEmail(savedTask, false);
 
         return entityMapperUtil.mapToServiceTaskResponse(savedTask);
     }
@@ -139,6 +143,7 @@ public class ServiceTaskService {
                 .map(entityMapperUtil::mapToServiceTaskResponse)
                 .collect(Collectors.toList());
     }
+
     @Transactional
     public ServiceTaskResponse updateTask(String taskId, ServiceTaskRequest request, UserDetailsImpl principal) {
         logger.info("Updating service task: {}", taskId);
@@ -158,6 +163,8 @@ public class ServiceTaskService {
         }
 
         String oldTechnicianId = task.getTechnician().getId();
+        String oldTechnicianName = task.getTechnician().getFullName();
+        boolean technicianChanged = false;
 
         if (!request.getMotorcycleId().equals(task.getMotorcycle().getId())) {
             Motorcycle motorcycle = motorcycleRepository.findById(request.getMotorcycleId())
@@ -166,9 +173,10 @@ public class ServiceTaskService {
         }
 
         if (!request.getTechnicianId().equals(task.getTechnician().getId())) {
-            User technician = userRepository.findById(request.getTechnicianId())
+            User newTechnician = userRepository.findById(request.getTechnicianId())
                     .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", request.getTechnicianId()));
-            task.setTechnician(technician);
+            task.setTechnician(newTechnician);
+            technicianChanged = true;
         }
 
         task.setIssueType(request.getIssueType());
@@ -185,16 +193,23 @@ public class ServiceTaskService {
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Service task updated successfully: {}", taskId);
 
-        if (!updatedTask.getTechnician().getId().equals(oldTechnicianId)) {
+        if (technicianChanged) {
+            // Log the reassignment
             activityLogService.createLog(principal.getId(), "TASK_REASSIGNED",
-                    String.format("Task %s reassigned from %s to %s during update.", taskId, oldTechnicianId, updatedTask.getTechnician().getId()));
+                    String.format("Task %s reassigned from %s to %s during update.",
+                            taskId, oldTechnicianName, updatedTask.getTechnician().getFullName()));
+
+            // Send email notification to new technician
+            sendTaskAssignmentEmail(updatedTask, true);
         } else {
             activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_UPDATED",
-                    String.format("Service task %s details updated by %s.", taskId, updatedTask.getTechnician().getFullName()));
+                    String.format("Service task %s details updated by %s.",
+                            taskId, updatedTask.getTechnician().getFullName()));
         }
 
         return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
     }
+
 
     @Transactional
     public ServiceTaskResponse updateTaskStatus(String taskId, TaskStatusUpdateRequest request, UserDetailsImpl principal) {
@@ -276,11 +291,7 @@ public class ServiceTaskService {
 
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Task updated successfully: {}", taskId);
-
-        // 🎯 FIX: Map the entity to the DTO *before* sending via websocket
         ServiceTaskResponse responseDTO = entityMapperUtil.mapToServiceTaskResponse(updatedTask);
-
-        // Send the DTO instead of the raw entity to prevent serialization errors
         messagingTemplate.convertAndSend("/topic/tasks", responseDTO);
 
         return responseDTO;
@@ -381,5 +392,67 @@ public class ServiceTaskService {
                                                             Pageable pageable) {
         return serviceTaskRepository.findAllTasksInDateRange(startDate, endDate, pageable)
                 .map(entityMapperUtil::mapToServiceTaskResponse);
+    }
+
+    private void sendTaskAssignmentEmail(ServiceTask task, boolean isReassignment) {
+        try {
+            User technician = task.getTechnician();
+            String email = technician.getEmail();
+
+            if (email == null || email.isBlank()) {
+                logger.warn("Cannot send email - technician {} has no email address", technician.getId());
+                return;
+            }
+
+            String subject = isReassignment
+                    ? "New Task Reassigned - " + task.getIssueType()
+                    : "New Task Assigned - " + task.getIssueType();
+
+            String body = buildTaskAssignmentEmailBody(task, technician, isReassignment);
+
+            emailService.sendEmail(email, "Aftercare App", subject, body);
+
+            logger.info("Task assignment email sent to technician: {}", technician.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to send task assignment email", e);
+            // Don't throw exception - email failure shouldn't break task assignment
+        }
+    }
+
+    private String buildTaskAssignmentEmailBody(ServiceTask task, User technician, boolean isReassignment) {
+        StringBuilder body = new StringBuilder();
+
+        body.append("Hello ").append(technician.getFullName()).append(",\n\n");
+
+        if (isReassignment) {
+            body.append("A task has been reassigned to you.\n\n");
+        } else {
+            body.append("A new task has been assigned to you.\n\n");
+        }
+
+        body.append("Task Details:\n");
+        body.append("----------------------------------\n");
+        body.append("Task ID: ").append(task.getId()).append("\n");
+        body.append("Issue Type: ").append(task.getIssueType()).append("\n");
+        body.append("Motorcycle: ").append(task.getMotorcycle().getPlateNumber()).append("\n");
+        body.append("Status: ").append(task.getStatus()).append("\n");
+
+        if (task.getDescription() != null && !task.getDescription().isBlank()) {
+            body.append("Description: ").append(task.getDescription()).append("\n");
+        }
+
+        if (task.getDueTime() != null) {
+            body.append("Due Date: ").append(task.getDueTime()).append("\n");
+        }
+
+        if (task.getEstimatedTime() != null) {
+            body.append("Estimated Time: ").append(task.getEstimatedTime()).append(" minutes\n");
+        }
+
+        body.append("-----------------------------------\n\n");
+        body.append("Please log in to the system to view full task details and update the status.\n\n");
+        body.append("If you have any questions, please contact your supervisor.\n\n");
+
+        return body.toString();
     }
 }

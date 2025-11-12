@@ -49,8 +49,8 @@ public class User extends BaseEntity {
     private String photoUrl;
     private String phoneNumber;
     private String createdBy = "SELF";
-    private boolean enabled = true;
-    private boolean status = true;
+    private boolean enabled = true; // for verifying email
+    private boolean status = true; // for activating account
 
     @Column(name = "password_change_required")
     private boolean passwordChangeRequired = false;

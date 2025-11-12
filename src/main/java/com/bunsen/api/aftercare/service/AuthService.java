@@ -7,6 +7,7 @@ import com.bunsen.api.aftercare.dto.response.JwtResponse;
 import com.bunsen.api.aftercare.dto.response.MessageResponse;
 import com.bunsen.api.aftercare.dto.response.UserResponse;
 import com.bunsen.api.aftercare.enums.ERole;
+import com.bunsen.api.aftercare.exception.AccountInactiveException;
 import com.bunsen.api.aftercare.exception.BadRequestException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.model.Role;
@@ -110,7 +111,7 @@ public class AuthService {
             // Check if user is active (status should be true)
             if (!user.isStatus()) {
                 logger.warn("Authentication attempt by inactive user: {}", userDetails.getUsername());
-                throw new BadRequestException("Account is inactive. Please contact support.");
+                throw new AccountInactiveException("Account is inactive. Please contact support.");
             }
 
             String jwt = jwtUtils.generateJwtToken(authentication);
@@ -198,7 +199,7 @@ public class AuthService {
 
         if (strRoles == null || strRoles.isEmpty()) {
             logger.debug("Setting default CUSTOMER role for user: {}", username);
-            Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
+            Role userRole = roleRepository.findByName(ERole.ROLE_STAFF)
                     .orElseThrow(() -> {
                         logger.error("Error: ROLE_CUSTOMER not found in database");
                         return new RuntimeException("Error: Role CUSTOMER is not found in database.");
@@ -212,13 +213,8 @@ public class AuthService {
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
                         roles.add(adminRole);
                     }
-                    case "staff" -> {
-                        Role modRole = roleRepository.findByName(ERole.ROLE_STAFF)
-                                .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
-                        roles.add(modRole);
-                    }
                     default -> {
-                        Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
+                        Role userRole = roleRepository.findByName(ERole.ROLE_STAFF)
                                 .orElseThrow(() -> new RuntimeException("Error: Role is not found."));
                         roles.add(userRole);
                     }
@@ -262,7 +258,7 @@ public class AuthService {
 
         String username = jwtUtils.getUserNameFromJwtToken(token);
         User user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User","Username",username));
+                .orElseThrow(() -> new ResourceNotFoundException("User", "Username", username));
 
         if (user.isEnabled()) {
             logger.info("Email already verified for user: {}", username);
@@ -338,15 +334,16 @@ public class AuthService {
 
         String username = jwtUtils.getUserNameFromJwtToken(refreshToken);
         User user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BadRequestException("User not found"));
 
         if (!user.isEnabled()) {
-            throw new RuntimeException("User account is disabled");
+            throw new BadRequestException("User email is not verified. Please verify your email address.");
         }
 
         // Add status check
         if (!user.isStatus()) {
-            throw new RuntimeException("User account is inactive");
+            logger.warn("Authentication attempt by inactive user: {}", user.getUsername());
+            throw new AccountInactiveException();
         }
 
         List<GrantedAuthority> authorities = user.getRoles().stream()
@@ -379,7 +376,7 @@ public class AuthService {
 
                 if (!user.isStatus()) {
                     logger.warn("Google authentication attempt by inactive user: {}", user.getUsername());
-                    throw new BadRequestException("Account is inactive. Please contact support.");
+                    throw new AccountInactiveException("Account is inactive. Please contact support.");
                 }
 
                 getGoogleUserInfo(userInfo, name, user);
@@ -406,9 +403,11 @@ public class AuthService {
             userRepository.save(user);  // Save once with correct username
             return generateJwtForUser(user);
 
+        } catch (AccountInactiveException e) {
+            throw e;
         } catch (Exception e) {
-            logger.error("Google authentication failed: {}", e.getMessage());
-            throw new RuntimeException("Invalid Google token", e);
+            logger.error("Google token verification failed: {}", e.getMessage(), e);
+            throw new BadRequestException("Invalid or expired Google token");
         }
     }
 
@@ -484,7 +483,7 @@ public class AuthService {
                 // Check if user is active (status should be true)
                 if (!user.isStatus()) {
                     logger.warn("Web Google authentication attempt by inactive user: {}", user.getUsername());
-                    throw new BadRequestException("Account is inactive. Please contact support.");
+                    throw new AccountInactiveException("Account is inactive. Please contact support.");
                 }
 
                 // Update user info if necessary
@@ -501,7 +500,7 @@ public class AuthService {
                 // Generate a unique username within the size limit (0-20 characters)
                 createNewUser(email, user);
                 // Assign default role
-                Role userRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
+                Role userRole = roleRepository.findByName(ERole.ROLE_STAFF)
                         .orElseThrow(() -> new RuntimeException("Role not found"));
                 user.setRoles(Set.of(userRole));
                 user.setPasswordChangeRequired(false);
@@ -513,9 +512,11 @@ public class AuthService {
             // Step 5: Generate and return JWT response
             return generateJwtForUser(user);
 
+        } catch (AccountInactiveException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Web Google authentication failed: {}", e.getMessage(), e);
-            throw new RuntimeException("Web Google authentication failed", e);
+            throw new BadRequestException("Google authentication failed. Please try again.");
         }
     }
 
@@ -523,7 +524,7 @@ public class AuthService {
         // Check if user is active before generating JWT
         if (!user.isStatus()) {
             logger.warn("JWT generation attempt for inactive user: {}", user.getUsername());
-            throw new BadRequestException("Account is inactive. Please contact support.");
+            throw new AccountInactiveException("Account is inactive. Please contact support.");
         }
 
         List<GrantedAuthority> authorities = user.getRoles().stream()
@@ -580,7 +581,7 @@ public class AuthService {
 
     public UserResponse getUserById(String userId) {
         logger.debug("Fetching user profile for ID: {}", userId);
-        
+
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
