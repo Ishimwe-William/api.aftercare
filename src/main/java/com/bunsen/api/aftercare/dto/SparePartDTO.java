@@ -103,6 +103,15 @@ public class SparePartDTO {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class SupplierSuggestion {
+        private String name;
+        private String contact;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class StockAlertResponse {
         private Integer lowStockCount;
         private Integer outOfStockCount;

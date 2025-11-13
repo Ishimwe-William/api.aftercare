@@ -29,6 +29,6 @@ public interface SparePartRepository extends BaseRepository<SparePart, String>,
     @Query("SELECT sp FROM SparePart sp WHERE LOWER(sp.name) LIKE LOWER(CONCAT('%', :keyword, '%'))")
     Page<SparePart> searchByName(@Param("keyword") String keyword, Pageable pageable);
 
-    @Query("SELECT sp FROM SparePart sp ORDER BY sp.quantityAvailable ASC")
-    Page<SparePart> findAllOrderByQuantityAsc(Pageable pageable);
+    @Query("SELECT DISTINCT sp.supplier.name, sp.supplier.contact FROM SparePart sp WHERE LOWER(sp.supplier.name) LIKE LOWER(CONCAT('%', :supplierName, '%'))")
+    List<Object[]> findSimilarSuppliers(@Param("supplierName") String supplierName);
 }

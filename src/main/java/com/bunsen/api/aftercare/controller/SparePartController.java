@@ -72,9 +72,16 @@ public class SparePartController {
         return ResponseEntity.ok(sparePartService.getStockAlerts());
     }
 
-    @GetMapping("/supplier/{supplierName}")
-    public ResponseEntity<List<SparePartResponse>> getPartsBySupplier(@PathVariable String supplierName) {
-        return ResponseEntity.ok(sparePartService.getPartsBySupplier(supplierName));
+    @GetMapping("/check-similar")
+    public ResponseEntity<List<SparePartResponse>> checkSimilarParts(
+            @RequestParam String name) {
+        return ResponseEntity.ok(sparePartService.checkSimilarParts(name));
+    }
+
+    @GetMapping("/check-similar-suppliers")
+    public ResponseEntity<List<SupplierSuggestion>> checkSimilarSuppliers(
+            @RequestParam String supplierName) {
+        return ResponseEntity.ok(sparePartService.checkSimilarSuppliers(supplierName));
     }
 
     @PostMapping
@@ -87,7 +94,6 @@ public class SparePartController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<SparePartResponse> updatePart(
             @PathVariable String id,
             @Valid @RequestBody SparePartRequest request) {
