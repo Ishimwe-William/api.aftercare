@@ -160,7 +160,7 @@ public class ServiceTaskService {
             throw new UnauthorizedException("You can only update your own tasks");
         }
 
-        if (task.getStatus() == ETaskStatus.COMPLETED) {
+        if (task.getStatus() == ETaskStatus.COMPLETED && !isAdmin) {
             throw new TaskStatusException(task.getStatus().name(), "update");
         }
 
@@ -232,7 +232,7 @@ public class ServiceTaskService {
         if (request.getStatus() != null) {
             ETaskStatus newStatus = request.getStatus();
 
-            if (currentStatus == ETaskStatus.COMPLETED) {
+            if (currentStatus == ETaskStatus.COMPLETED && !isAdmin) {
                 throw new TaskStatusException(currentStatus.name(), "update");
             }
 
