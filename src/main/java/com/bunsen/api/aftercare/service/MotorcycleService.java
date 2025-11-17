@@ -212,23 +212,13 @@ public class MotorcycleService {
 
     @Transactional(readOnly = true)
     public MotorcycleStatisticsResponse getMotorcycleStatistics() {
-        List<Motorcycle> allMotorcycles = motorcycleRepository.findAll();
-
-        long totalMotorcycles = allMotorcycles.size();
-        long activeMotorcycles = allMotorcycles.stream()
-                .filter(m -> m.getStatus() == Motorcycle.MotorcycleStatus.ACTIVE)
-                .count();
-        long inactiveMotorcycles = allMotorcycles.stream()
-                .filter(m -> m.getStatus() == Motorcycle.MotorcycleStatus.INACTIVE)
-                .count();
-        long inServiceMotorcycles = allMotorcycles.stream()
-                .filter(m -> m.getStatus() == Motorcycle.MotorcycleStatus.IN_SERVICE)
-                .count();
-
         LocalDateTime cutoffDate = LocalDateTime.now().minusMonths(SERVICE_INTERVAL_MONTHS);
-        long motorcyclesNeedingService = allMotorcycles.stream()
-                .filter(m -> m.getLastServiceDate() == null || m.getLastServiceDate().isBefore(cutoffDate))
-                .count();
+
+        long totalMotorcycles = motorcycleRepository.count();
+        long activeMotorcycles = motorcycleRepository.countByStatus(Motorcycle.MotorcycleStatus.ACTIVE);
+        long inactiveMotorcycles = motorcycleRepository.countByStatus(Motorcycle.MotorcycleStatus.INACTIVE);
+        long inServiceMotorcycles = motorcycleRepository.countByStatus(Motorcycle.MotorcycleStatus.IN_SERVICE);
+        long motorcyclesNeedingService = motorcycleRepository.countMotorcyclesNeedingService(cutoffDate);
 
         return MotorcycleStatisticsResponse.builder()
                 .totalMotorcycles(totalMotorcycles)

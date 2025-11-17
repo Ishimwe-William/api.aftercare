@@ -31,8 +31,10 @@ public class MotorcycleDTO {
 
         @Size(max = 100, message = "Plate number must not exceed 100 characters")
         @Unique
+        @NotBlank(message = "Plate number is required")
         private String plateNumber;
 
+        @NotBlank(message = "Owner name is required")
         @Size(max = 100, message = "Owner name must not exceed 100 characters")
         private String ownerName;
 

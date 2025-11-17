@@ -93,6 +93,8 @@ public class ServiceTaskService {
         ServiceTask savedTask = serviceTaskRepository.save(task);
         logger.info("Service task created successfully with ID: {}", savedTask.getId());
 
+        updateMotorcycleStatusBasedOnTasks(savedTask.getMotorcycle().getId(), creatorId);
+
         activityLogService.createLog(creatorId, "TASK_CREATED",
                 String.format("Service task %s created and assigned to %s.", savedTask.getId(), technician.getFullName()));
 
@@ -162,7 +164,6 @@ public class ServiceTaskService {
             throw new TaskStatusException(task.getStatus().name(), "update");
         }
 
-        String oldTechnicianId = task.getTechnician().getId();
         String oldTechnicianName = task.getTechnician().getFullName();
         boolean technicianChanged = false;
 
@@ -192,6 +193,8 @@ public class ServiceTaskService {
 
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Service task updated successfully: {}", taskId);
+
+        updateMotorcycleStatusBasedOnTasks(updatedTask.getMotorcycle().getId(), principal.getId());
 
         if (technicianChanged) {
             // Log the reassignment
@@ -270,6 +273,7 @@ public class ServiceTaskService {
             activityLogService.createLog(updaterId, "TASK_STATUS_CHANGE",
                     String.format("Task %s status changed from %s to %s by user %s.",
                             taskId, currentStatus, newStatus, updaterId));
+
         }
 
         // Update notes if provided
@@ -291,16 +295,36 @@ public class ServiceTaskService {
 
         ServiceTask updatedTask = serviceTaskRepository.save(task);
         logger.info("Task updated successfully: {}", taskId);
+
+        updateMotorcycleStatusBasedOnTasks(updatedTask.getMotorcycle().getId(), principal.getId());
+
         ServiceTaskResponse responseDTO = entityMapperUtil.mapToServiceTaskResponse(updatedTask);
         messagingTemplate.convertAndSend("/topic/tasks", responseDTO);
 
         return responseDTO;
     }
 
+    private void updateMotorcycleStatusBasedOnTasks(String motorcycleId, String updaterId) {
+        long activeTaskCount = serviceTaskRepository.countByMotorcycleIdAndStatusNot(motorcycleId, ETaskStatus.COMPLETED);
+        Motorcycle motorcycle = motorcycleRepository.findById(motorcycleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", motorcycleId));
+
+        Motorcycle.MotorcycleStatus newStatus = (activeTaskCount > 0) ? Motorcycle.MotorcycleStatus.IN_SERVICE : Motorcycle.MotorcycleStatus.ACTIVE;
+
+        if (motorcycle.getStatus() != newStatus) {
+            Motorcycle.MotorcycleStatus oldStatus = motorcycle.getStatus();
+            motorcycle.setStatus(newStatus);
+            motorcycle.setLastServiceDate(LocalDateTime.now());
+            motorcycleRepository.save(motorcycle);
+            logger.info("Updated motorcycle {} status from {} to {}", motorcycleId, oldStatus, newStatus);
+
+            activityLogService.createLog(updaterId, "MOTORCYCLE_STATUS_AUTO_UPDATE",
+                    String.format("Motorcycle %s status auto-updated from %s to %s based on tasks.", motorcycle.getPlateNumber(), oldStatus, newStatus));
+        }
+    }
+
     @Transactional
     public void deleteTask(String taskId, String deleterId) {
-        logger.info("Deleting service task: {}", taskId);
-
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
@@ -311,6 +335,8 @@ public class ServiceTaskService {
 
         serviceTaskRepository.delete(task);
         logger.info("Service task deleted successfully: {}", taskId);
+
+        updateMotorcycleStatusBasedOnTasks(task.getMotorcycle().getId(), deleterId);
 
         activityLogService.createLog(deleterId, "TASK_DELETED",
                 String.format("Task %s deleted. Was assigned to %s.", taskId, task.getTechnician().getFullName()));

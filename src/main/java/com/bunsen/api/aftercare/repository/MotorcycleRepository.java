@@ -32,4 +32,9 @@ public interface MotorcycleRepository extends BaseRepository<Motorcycle, String>
     Page<Motorcycle> findMotorcyclesNeedingService(@Param("date") LocalDateTime date, Pageable pageable);
 
     Optional<Motorcycle> findByPlateNumber(String plateNumber);
+
+    long countByStatus(Motorcycle.MotorcycleStatus motorcycleStatus);
+
+    @Query("SELECT COUNT(m) FROM Motorcycle m WHERE m.lastServiceDate IS NULL OR m.lastServiceDate < :cutoffDate")
+    long countMotorcyclesNeedingService(@Param("cutoffDate") LocalDateTime cutoffDate);
 }

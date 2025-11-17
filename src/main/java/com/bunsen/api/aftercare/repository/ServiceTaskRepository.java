@@ -56,4 +56,6 @@ public interface ServiceTaskRepository extends BaseRepository<ServiceTask, Strin
     Page<ServiceTask> findAllTasksInDateRange(@Param("startDate") LocalDateTime startDate,
                                               @Param("endDate") LocalDateTime endDate,
                                               Pageable pageable);
+
+    long countByMotorcycleIdAndStatusNot(String motorcycleId, ETaskStatus eTaskStatus);
 }
