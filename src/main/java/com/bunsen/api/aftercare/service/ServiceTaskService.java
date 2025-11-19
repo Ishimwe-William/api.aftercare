@@ -338,12 +338,16 @@ public class ServiceTaskService {
             throw new TaskStatusException(task.getStatus().name(), "delete");
         }
 
-        Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
-        if (invoice != null) {
+        try {
+            // Try to find the invoice. If it exists, delete it.
+            Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
             invoiceService.deleteInvoice(invoice.getInvoiceId());
             activityLogService.createLog(principal.getId(), "INVOICE_DELETED",
                     String.format("Invoice %s deleted because associated task %s was deleted.",
                             invoice.getInvoiceId(), task.getId()));
+        } catch (ResourceNotFoundException e) {
+            // If no invoice is found, that's perfectly fine.
+            // We just proceed to delete the task.
         }
 
         serviceTaskRepository.delete(task);
