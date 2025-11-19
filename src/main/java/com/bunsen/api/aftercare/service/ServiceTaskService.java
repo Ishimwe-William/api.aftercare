@@ -5,12 +5,10 @@ import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
 import com.bunsen.api.aftercare.exception.UnauthorizedException;
-import com.bunsen.api.aftercare.model.Invoice;
-import com.bunsen.api.aftercare.model.Motorcycle;
-import com.bunsen.api.aftercare.model.ServiceTask;
-import com.bunsen.api.aftercare.model.User;
+import com.bunsen.api.aftercare.model.*;
 import com.bunsen.api.aftercare.repository.MotorcycleRepository;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
+import com.bunsen.api.aftercare.repository.TaskPartUsageRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
 import com.bunsen.api.aftercare.util.EntityMapperUtil;
 import com.bunsen.api.aftercare.util.ValidationUtil;
@@ -42,13 +40,14 @@ public class ServiceTaskService {
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
     private final InvoiceService invoiceService;
+    private final TaskPartUsageRepository taskPartUsageRepository;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
                               MotorcycleRepository motorcycleRepository,
                               ActivityLogService activityLogService,
                               EntityMapperUtil entityMapperUtil,
-                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService, InvoiceService invoiceService) {
+                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService, InvoiceService invoiceService, TaskPartUsageRepository taskPartUsageRepository) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
@@ -58,6 +57,7 @@ public class ServiceTaskService {
         this.messagingTemplate = messagingTemplate;
         this.emailService = emailService;
         this.invoiceService = invoiceService;
+        this.taskPartUsageRepository = taskPartUsageRepository;
     }
 
     @Transactional
@@ -348,6 +348,11 @@ public class ServiceTaskService {
         } catch (ResourceNotFoundException e) {
             // If no invoice is found, that's perfectly fine.
             // We just proceed to delete the task.
+        }
+
+        List<TaskPartUsage> partUsages = taskPartUsageRepository.findByTaskId(taskId);
+        if (!partUsages.isEmpty()) {
+            taskPartUsageRepository.deleteAll(partUsages);
         }
 
         serviceTaskRepository.delete(task);

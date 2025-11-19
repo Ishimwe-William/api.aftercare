@@ -157,7 +157,12 @@ public class InvoiceService {
         return invoiceRepository.calculateTotalRevenueBetween(startDate, endDate);
     }
 
+    @Transactional
     public void deleteInvoice(String invoiceId) {
+        List<InvoiceLineItem> lineItems = invoiceLineItemRepository.findByInvoiceId(invoiceId);
+        if (!lineItems.isEmpty()) {
+            invoiceLineItemRepository.deleteAll(lineItems);
+        }
         invoiceRepository.deleteById(invoiceId);
     }
 }
