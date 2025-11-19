@@ -337,8 +337,8 @@ public class ServiceTaskService {
         if (task.getStatus() == ETaskStatus.COMPLETED && !isAdmin) {
             throw new TaskStatusException(task.getStatus().name(), "delete");
         }
-        Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
 
+        Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
         if (invoice != null) {
             invoiceService.deleteInvoice(invoice.getInvoiceId());
             activityLogService.createLog(principal.getId(), "INVOICE_DELETED",
