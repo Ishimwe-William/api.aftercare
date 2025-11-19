@@ -78,7 +78,7 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:19006",
                 "http://localhost:8080",
-                "https://aftercare-web.onrender.com"
+                "https://aftercare-energy.vercel.app"
         ));
         corsConfiguration.setAllowedHeaders(Arrays.asList(
                 "Origin",
