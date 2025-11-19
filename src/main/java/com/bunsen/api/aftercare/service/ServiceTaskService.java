@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -443,28 +444,30 @@ public class ServiceTaskService {
     }
 
     private void sendTaskAssignmentEmail(ServiceTask task, boolean isReassignment) {
-        try {
-            User technician = task.getTechnician();
-            String email = technician.getEmail();
+        // Run this in a separate thread so it doesn't block the user or the transaction
+        CompletableFuture.runAsync(() -> {
+            try {
+                User technician = task.getTechnician();
+                String email = technician.getEmail();
 
-            if (email == null || email.isBlank()) {
-                logger.warn("Cannot send email - technician {} has no email address", technician.getId());
-                return;
+                if (email == null || email.isBlank()) {
+                    logger.warn("Cannot send email - technician {} has no email address", technician.getId());
+                    return;
+                }
+
+                String subject = isReassignment
+                        ? "New Task Reassigned - " + task.getIssueType()
+                        : "New Task Assigned - " + task.getIssueType();
+
+                String body = buildTaskAssignmentEmailBody(task, technician, isReassignment);
+
+                emailService.sendEmail(email, "Aftercare App", subject, body);
+
+                logger.info("Task assignment email sent to technician: {}", technician.getEmail());
+            } catch (Exception e) {
+                logger.error("Failed to send task assignment email", e);
             }
-
-            String subject = isReassignment
-                    ? "New Task Reassigned - " + task.getIssueType()
-                    : "New Task Assigned - " + task.getIssueType();
-
-            String body = buildTaskAssignmentEmailBody(task, technician, isReassignment);
-
-            emailService.sendEmail(email, "Aftercare App", subject, body);
-
-            logger.info("Task assignment email sent to technician: {}", technician.getEmail());
-        } catch (Exception e) {
-            logger.error("Failed to send task assignment email", e);
-            // Don't throw exception - email failure shouldn't break task assignment
-        }
+        });
     }
 
     private String buildTaskAssignmentEmailBody(ServiceTask task, User technician, boolean isReassignment) {
