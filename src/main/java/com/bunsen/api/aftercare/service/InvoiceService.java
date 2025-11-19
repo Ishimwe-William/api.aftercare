@@ -156,4 +156,8 @@ public class InvoiceService {
     public BigDecimal calculateTotalRevenue(LocalDateTime startDate, LocalDateTime endDate) {
         return invoiceRepository.calculateTotalRevenueBetween(startDate, endDate);
     }
+
+    public void deleteInvoice(String invoiceId) {
+        invoiceRepository.deleteById(invoiceId);
+    }
 }

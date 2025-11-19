@@ -149,8 +149,8 @@ public class ServiceTaskController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MessageResponse> deleteTask(@PathVariable String id,
                                                       @AuthenticationPrincipal UserDetailsImpl principal) {
-        String deleterId = principal.getId();
-        serviceTaskService.deleteTask(id, deleterId);
+
+        serviceTaskService.deleteTask(id, principal);
         return ResponseEntity.ok(new MessageResponse("Service task deleted successfully"));
     }
 }

@@ -5,6 +5,7 @@ import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
 import com.bunsen.api.aftercare.exception.UnauthorizedException;
+import com.bunsen.api.aftercare.model.Invoice;
 import com.bunsen.api.aftercare.model.Motorcycle;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.model.User;
@@ -40,13 +41,14 @@ public class ServiceTaskService {
     private final ValidationUtil validationUtil;
     private final SimpMessagingTemplate messagingTemplate;
     private final EmailService emailService;
+    private final InvoiceService invoiceService;
 
     public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
                               UserRepository userRepository,
                               MotorcycleRepository motorcycleRepository,
                               ActivityLogService activityLogService,
                               EntityMapperUtil entityMapperUtil,
-                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService) {
+                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService, InvoiceService invoiceService) {
         this.serviceTaskRepository = serviceTaskRepository;
         this.userRepository = userRepository;
         this.motorcycleRepository = motorcycleRepository;
@@ -55,6 +57,7 @@ public class ServiceTaskService {
         this.validationUtil = validationUtil;
         this.messagingTemplate = messagingTemplate;
         this.emailService = emailService;
+        this.invoiceService = invoiceService;
     }
 
     @Transactional
@@ -324,21 +327,31 @@ public class ServiceTaskService {
     }
 
     @Transactional
-    public void deleteTask(String taskId, String deleterId) {
+    public void deleteTask(String taskId, UserDetailsImpl principal) {
         ServiceTask task = serviceTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceTask", "taskId", taskId));
 
-        if (task.getStatus() != ETaskStatus.PENDING) {
-            // Use TaskStatusException
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (task.getStatus() == ETaskStatus.COMPLETED && !isAdmin) {
             throw new TaskStatusException(task.getStatus().name(), "delete");
+        }
+        Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
+
+        if (invoice != null) {
+            invoiceService.deleteInvoice(invoice.getInvoiceId());
+            activityLogService.createLog(principal.getId(), "INVOICE_DELETED",
+                    String.format("Invoice %s deleted because associated task %s was deleted.",
+                            invoice.getInvoiceId(), task.getId()));
         }
 
         serviceTaskRepository.delete(task);
         logger.info("Service task deleted successfully: {}", taskId);
 
-        updateMotorcycleStatusBasedOnTasks(task.getMotorcycle().getId(), deleterId);
+        updateMotorcycleStatusBasedOnTasks(task.getMotorcycle().getId(), principal.getId());
 
-        activityLogService.createLog(deleterId, "TASK_DELETED",
+        activityLogService.createLog(principal.getId(), "TASK_DELETED",
                 String.format("Task %s deleted. Was assigned to %s.", taskId, task.getTechnician().getFullName()));
     }
 
