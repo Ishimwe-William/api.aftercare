@@ -148,6 +148,7 @@ public class MotorcycleService {
 
         motorcycle.setModel(request.getModel());
         motorcycle.setPlateNumber(request.getPlateNumber());
+        motorcycle.setQrCode(request.getQrCode());
         OwnerInfo ownerInfo = new OwnerInfo();
         ownerInfo.setName(request.getOwnerName());
         ownerInfo.setPhone(request.getOwnerPhone());

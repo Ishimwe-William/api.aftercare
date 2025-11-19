@@ -25,7 +25,6 @@ public class MonitoringController {
     private final MonitoringService monitoringService;
 
     @GetMapping("/cases")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR') or hasRole('TECHNICIAN')")
     public ResponseEntity<Page<ServiceCaseResponse>> getServiceCases(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String technicianId,
@@ -54,7 +53,6 @@ public class MonitoringController {
     }
 
     @GetMapping("/cases/filtered")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<List<ServiceCaseResponse>> getFilteredServiceCases(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String technicianId,
@@ -76,35 +74,30 @@ public class MonitoringController {
     }
 
     @GetMapping("/cases/{taskId}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR') or hasRole('TECHNICIAN')")
     public ResponseEntity<CaseDetailsResponse> getCaseDetails(@PathVariable String taskId) {
         CaseDetailsResponse details = monitoringService.getCaseDetails(taskId);
         return ResponseEntity.ok(details);
     }
 
     @PostMapping("/cases/reassign")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<ServiceCaseResponse> reassignTask(@RequestBody ReassignRequest request) {
         ServiceCaseResponse response = monitoringService.reassignTask(request);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/alerts")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<List<AlertResponse>> getAlerts() {
         List<AlertResponse> alerts = monitoringService.getAlerts();
         return ResponseEntity.ok(alerts);
     }
 
     @GetMapping("/statistics")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<MonitoringStats> getStatistics() {
         MonitoringStats stats = monitoringService.getStatistics();
         return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/timeline")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<List<ServiceTimelineData>> getServiceTimeline(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate
@@ -114,7 +107,6 @@ public class MonitoringController {
     }
 
     @GetMapping("/peak-hours")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<List<PeakHoursData>> getPeakHoursData(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate

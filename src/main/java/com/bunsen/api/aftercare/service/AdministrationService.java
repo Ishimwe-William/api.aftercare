@@ -70,7 +70,9 @@ public class AdministrationService {
 
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        user.setEnabled(request.isEnabled());
+        user.setStatus(request.isStatus());
+        user.setFullName(request.getFullName());
+        user.setPhoneNumber(request.getPhoneNumber());
 
         Set<Role> roles = new HashSet<>();
         request.getRoles().forEach(roleName -> {
@@ -124,11 +126,11 @@ public class AdministrationService {
     public UserResponse toggleUserStatus(String id, String updater) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
-        user.setEnabled(!user.isEnabled());
+        user.setStatus(!user.isStatus());
 
         User updatedUser = userRepository.save(user);
         activityLogService.createLog(updater, "USER_STATUS_TOGGLED",
-                String.format("User %s (%s) status set to %s.", updatedUser.getUsername(), updatedUser.getId(), updatedUser.isEnabled()));
+                String.format("User %s (%s) status set to %s.", updatedUser.getUsername(), updatedUser.getId(), updatedUser.isStatus()));
 
         return mapToResponse(updatedUser);
     }
@@ -147,15 +149,15 @@ public class AdministrationService {
         User user = new User();
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
-        user.setEnabled(request.isEnabled());
+        user.setStatus(request.isStatus());
+        user.setFullName(request.getFullName());
+        user.setPhoneNumber(request.getPhoneNumber());
         user.setPassword(passwordEncoder.encode("ChangeMe123!"));
         user.setPasswordChangeRequired(true);
 
         // Handle roles logic
         Set<Role> roles = new HashSet<>();
         if (request.getRoles() == null || request.getRoles().isEmpty()) {
-            // Assign a default role for general users if none is specified (e.g., ROLE_STAFF or ROLE_CUSTOMER)
-            // Assuming ROLE_STAFF for generic admin-created users, but adjust as needed.
             Role defaultRole = roleRepository.findByName(ERole.ROLE_STAFF)
                     .orElseThrow(() -> new ResourceNotFoundException("Default role ROLE_STAFF", "name", ERole.ROLE_STAFF.name()));
             roles.add(defaultRole);
