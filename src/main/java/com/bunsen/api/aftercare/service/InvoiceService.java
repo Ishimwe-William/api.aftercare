@@ -165,4 +165,10 @@ public class InvoiceService {
         }
         invoiceRepository.deleteById(invoiceId);
     }
+
+    @Transactional(readOnly = true)
+    public Optional<Invoice> findInvoiceByTaskId(String taskId) {
+        // Returns the Optional directly without throwing an exception if empty
+        return invoiceRepository.findByTaskId(taskId);
+    }
 }

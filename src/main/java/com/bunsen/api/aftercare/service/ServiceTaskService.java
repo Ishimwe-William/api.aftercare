@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -338,16 +339,15 @@ public class ServiceTaskService {
             throw new TaskStatusException(task.getStatus().name(), "delete");
         }
 
-        try {
-            // Try to find the invoice. If it exists, delete it.
-            Invoice invoice = invoiceService.getInvoiceByTaskId(taskId);
+        Optional<Invoice> invoiceOpt = invoiceService.findInvoiceByTaskId(taskId);
+
+        if (invoiceOpt.isPresent()) {
+            Invoice invoice = invoiceOpt.get();
             invoiceService.deleteInvoice(invoice.getInvoiceId());
+
             activityLogService.createLog(principal.getId(), "INVOICE_DELETED",
                     String.format("Invoice %s deleted because associated task %s was deleted.",
                             invoice.getInvoiceId(), task.getId()));
-        } catch (ResourceNotFoundException e) {
-            // If no invoice is found, that's perfectly fine.
-            // We just proceed to delete the task.
         }
 
         List<TaskPartUsage> partUsages = taskPartUsageRepository.findByTaskId(taskId);
