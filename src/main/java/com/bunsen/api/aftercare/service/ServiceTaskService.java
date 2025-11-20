@@ -2,6 +2,7 @@ package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.ServiceTaskDTO.*;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
+import com.bunsen.api.aftercare.exception.AccountInactiveException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
 import com.bunsen.api.aftercare.exception.UnauthorizedException;
@@ -181,6 +182,11 @@ public class ServiceTaskService {
         if (!request.getTechnicianId().equals(task.getTechnician().getId())) {
             User newTechnician = userRepository.findById(request.getTechnicianId())
                     .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", request.getTechnicianId()));
+
+            if (!newTechnician.isStatus()) {
+                throw new AccountInactiveException("Cannot assign task to disabled user");
+            }
+            
             task.setTechnician(newTechnician);
             technicianChanged = true;
         }
@@ -217,7 +223,6 @@ public class ServiceTaskService {
 
         return entityMapperUtil.mapToServiceTaskResponse(updatedTask);
     }
-
 
     @Transactional
     public ServiceTaskResponse updateTaskStatus(String taskId, TaskStatusUpdateRequest request, UserDetailsImpl principal) {
