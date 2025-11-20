@@ -167,7 +167,7 @@ public class AuthService {
                     return new MessageResponse("A new verification email has been sent to your email address.");
                 } catch (MessagingException e) {
                     logger.error("Error sending verification email to {}: {}", user.getEmail(), e.getMessage());
-//                    throw new RuntimeException("Error sending verification email");
+                    throw new RuntimeException("Error sending verification email");
                 }
             }
 
@@ -238,7 +238,7 @@ public class AuthService {
             logger.info("Verification email sent to {}", user.getEmail());
         } catch (MessagingException e) {
             logger.error("Error sending verification email to {}: {}", user.getEmail(), e.getMessage());
-//            throw new RuntimeException("Error sending verification email");
+            throw new RuntimeException("Error sending verification email");
         }
 
         return new MessageResponse("User registered successfully. Please check your email to verify your account.");
@@ -296,7 +296,7 @@ public class AuthService {
             logger.info("Password reset token sent to {}", email);
         } catch (MessagingException e) {
             logger.error("Error sending password reset token to {}: {}", email, e.getMessage());
-//            throw new RuntimeException("Error sending password reset token");
+            throw new RuntimeException("Error sending password reset token");
         }
 
         return new MessageResponse("If the email is registered, a reset link will be sent.");
