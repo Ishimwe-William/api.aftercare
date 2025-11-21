@@ -20,7 +20,7 @@ import java.util.List;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/motorcycles")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') OR hasRole('SUPERVISOR')")
 public class MotorcycleController {
 
     private final MotorcycleService motorcycleService;
