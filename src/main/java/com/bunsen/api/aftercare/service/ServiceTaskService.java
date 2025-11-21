@@ -2,7 +2,6 @@ package com.bunsen.api.aftercare.service;
 
 import com.bunsen.api.aftercare.dto.ServiceTaskDTO.*;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
-import com.bunsen.api.aftercare.exception.AccountInactiveException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
 import com.bunsen.api.aftercare.exception.TaskStatusException;
 import com.bunsen.api.aftercare.exception.UnauthorizedException;
@@ -11,8 +10,12 @@ import com.bunsen.api.aftercare.repository.MotorcycleRepository;
 import com.bunsen.api.aftercare.repository.ServiceTaskRepository;
 import com.bunsen.api.aftercare.repository.TaskPartUsageRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
+import com.bunsen.api.aftercare.service.helper.EmailTemplateBuilder;
+import com.bunsen.api.aftercare.service.helper.TaskReassignmentService;
+import com.bunsen.api.aftercare.service.helper.TaskStatisticsCalculator;
 import com.bunsen.api.aftercare.util.EntityMapperUtil;
 import com.bunsen.api.aftercare.util.ValidationUtil;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -24,12 +27,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class ServiceTaskService {
     private static final Logger logger = LoggerFactory.getLogger(ServiceTaskService.class);
 
@@ -43,24 +46,9 @@ public class ServiceTaskService {
     private final EmailService emailService;
     private final InvoiceService invoiceService;
     private final TaskPartUsageRepository taskPartUsageRepository;
-
-    public ServiceTaskService(ServiceTaskRepository serviceTaskRepository,
-                              UserRepository userRepository,
-                              MotorcycleRepository motorcycleRepository,
-                              ActivityLogService activityLogService,
-                              EntityMapperUtil entityMapperUtil,
-                              ValidationUtil validationUtil, SimpMessagingTemplate messagingTemplate, EmailService emailService, InvoiceService invoiceService, TaskPartUsageRepository taskPartUsageRepository) {
-        this.serviceTaskRepository = serviceTaskRepository;
-        this.userRepository = userRepository;
-        this.motorcycleRepository = motorcycleRepository;
-        this.activityLogService = activityLogService;
-        this.entityMapperUtil = entityMapperUtil;
-        this.validationUtil = validationUtil;
-        this.messagingTemplate = messagingTemplate;
-        this.emailService = emailService;
-        this.invoiceService = invoiceService;
-        this.taskPartUsageRepository = taskPartUsageRepository;
-    }
+    private final TaskStatisticsCalculator statsCalculator;
+    private final EmailTemplateBuilder emailTemplateBuilder;
+    private final TaskReassignmentService reassignmentService;
 
     @Transactional
     public ServiceTaskResponse createTask(ServiceTaskRequest request, String creatorId) {
@@ -169,27 +157,25 @@ public class ServiceTaskService {
             throw new TaskStatusException(task.getStatus().name(), "update");
         }
 
-        String oldTechnicianName = task.getTechnician().getFullName();
-        boolean technicianChanged = false;
-
+        // Handle motorcycle change
         if (!request.getMotorcycleId().equals(task.getMotorcycle().getId())) {
             Motorcycle motorcycle = motorcycleRepository.findById(request.getMotorcycleId())
                     .orElseThrow(() -> new ResourceNotFoundException("Motorcycle", "id", request.getMotorcycleId()));
             task.setMotorcycle(motorcycle);
         }
 
+        TaskReassignmentService.ReassignmentResult reassignmentResult = null;
         if (!request.getTechnicianId().equals(task.getTechnician().getId())) {
-            User newTechnician = userRepository.findById(request.getTechnicianId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", request.getTechnicianId()));
-
-            if (!newTechnician.isStatus()) {
-                throw new AccountInactiveException("Cannot assign task to disabled user");
-            }
-            
-            task.setTechnician(newTechnician);
-            technicianChanged = true;
+            reassignmentResult = reassignmentService.reassignTaskDuringUpdate(
+                    task,
+                    request.getTechnicianId(),
+                    principal.getId(),
+                    true  // Send email = true
+            );
+            task = reassignmentResult.getTask();
         }
 
+        // Update other task fields
         task.setIssueType(request.getIssueType());
         task.setDescription(request.getDescription());
         task.setNotes(request.getNotes());
@@ -206,14 +192,11 @@ public class ServiceTaskService {
 
         updateMotorcycleStatusBasedOnTasks(updatedTask.getMotorcycle().getId(), principal.getId());
 
-        if (technicianChanged) {
-            // Log the reassignment
-            activityLogService.createLog(principal.getId(), "TASK_REASSIGNED",
-                    String.format("Task %s reassigned from %s to %s during update.",
-                            taskId, oldTechnicianName, updatedTask.getTechnician().getFullName()));
-
-            // Send email notification to new technician
-            sendTaskAssignmentEmail(updatedTask, true);
+        // Handle post-update logging (email already sent by reassignment service)
+        if (reassignmentResult != null && reassignmentResult.isWasReassigned()) {
+            // Email was already sent by TaskReassignmentService
+            logger.info("Task {} reassignment completed. Email sent: {}",
+                    taskId, reassignmentResult.isEmailSent());
         } else {
             activityLogService.createLog(updatedTask.getTechnician().getId(), "TASK_UPDATED",
                     String.format("Service task %s details updated by %s.",
@@ -396,41 +379,20 @@ public class ServiceTaskService {
     public TaskStatisticsResponse getTaskStatistics() {
         List<ServiceTask> allTasks = serviceTaskRepository.findAll();
 
-        long totalTasks = allTasks.size();
-        long pendingTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ETaskStatus.PENDING)
-                .count();
-        long inProgressTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS)
-                .count();
-        long completedTasks = allTasks.stream()
-                .filter(t -> t.getStatus() == ETaskStatus.COMPLETED)
-                .count();
+        // Use the centralized calculator
+        TaskStatisticsCalculator.TaskStatistics baseStats = statsCalculator.calculateStatistics(allTasks);
 
-        LocalDateTime now = LocalDateTime.now();
-        long overdueTasks = allTasks.stream()
-                .filter(t -> t.getDueTime() != null &&
-                        t.getDueTime().isBefore(now) &&
-                        (t.getStatus() == ETaskStatus.PENDING ||
-                                t.getStatus() == ETaskStatus.IN_PROGRESS))
-                .count();
-
+        // Get average completion time from repository
         Double averageCompletionTime = serviceTaskRepository.calculateAverageCompletionTimeInHours();
 
-        long totalLaborHours = allTasks.stream()
-                .map(ServiceTask::getLaborHours)
-                .filter(Objects::nonNull)
-                .mapToLong(BigDecimal::longValue)
-                .sum();
-
         return TaskStatisticsResponse.builder()
-                .totalTasks(totalTasks)
-                .pendingTasks(pendingTasks)
-                .inProgressTasks(inProgressTasks)
-                .completedTasks(completedTasks)
-                .overdueTasks(overdueTasks)
+                .totalTasks(baseStats.getTotalTasks())
+                .pendingTasks(baseStats.getPendingTasks())
+                .inProgressTasks(baseStats.getInProgressTasks())
+                .completedTasks(baseStats.getCompletedTasks())
+                .overdueTasks(baseStats.getOverdueTasks())
                 .averageCompletionTimeInHours(averageCompletionTime)
-                .totalLaborHours(totalLaborHours)
+                .totalLaborHours(baseStats.getTotalLaborHours())
                 .build();
     }
 
@@ -457,55 +419,15 @@ public class ServiceTaskService {
                 return;
             }
 
-            String subject = isReassignment
-                    ? "New Task Reassigned - " + task.getIssueType()
-                    : "New Task Assigned - " + task.getIssueType();
-
-            String body = buildTaskAssignmentEmailBody(task, technician, isReassignment);
+            // Use the centralized template builder
+            String subject = emailTemplateBuilder.buildTaskAssignmentSubject(task, isReassignment);
+            String body = emailTemplateBuilder.buildTaskAssignmentBody(task, technician, isReassignment);
 
             emailService.sendEmail(email, "Aftercare App", subject, body);
 
             logger.info("Task assignment email sent to technician: {}", technician.getEmail());
         } catch (Exception e) {
             logger.error("Failed to send task assignment email", e);
-            // Don't throw exception - email failure shouldn't break task assignment
         }
-    }
-
-    private String buildTaskAssignmentEmailBody(ServiceTask task, User technician, boolean isReassignment) {
-        StringBuilder body = new StringBuilder();
-
-        body.append("Hello ").append(technician.getFullName()).append(",\n\n");
-
-        if (isReassignment) {
-            body.append("A task has been reassigned to you.\n\n");
-        } else {
-            body.append("A new task has been assigned to you.\n\n");
-        }
-
-        body.append("Task Details:\n");
-        body.append("----------------------------------\n");
-        body.append("Task ID: ").append(task.getId()).append("\n");
-        body.append("Issue Type: ").append(task.getIssueType()).append("\n");
-        body.append("Motorcycle: ").append(task.getMotorcycle().getPlateNumber()).append("\n");
-        body.append("Status: ").append(task.getStatus()).append("\n");
-
-        if (task.getDescription() != null && !task.getDescription().isBlank()) {
-            body.append("Description: ").append(task.getDescription()).append("\n");
-        }
-
-        if (task.getDueTime() != null) {
-            body.append("Due Date: ").append(task.getDueTime()).append("\n");
-        }
-
-        if (task.getEstimatedTime() != null) {
-            body.append("Estimated Time: ").append(task.getEstimatedTime()).append(" minutes\n");
-        }
-
-        body.append("-----------------------------------\n\n");
-        body.append("Please log in to the system to view full task details and update the status.\n\n");
-        body.append("If you have any questions, please contact your supervisor.\n\n");
-
-        return body.toString();
     }
 }
