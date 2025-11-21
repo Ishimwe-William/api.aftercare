@@ -15,7 +15,7 @@ import java.util.List;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/technicians")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('SUPERVISOR')")
 public class TechnicianController {
 
     private final TechnicianService technicianService;
@@ -122,7 +122,7 @@ public class TechnicianController {
      * POST /api/technicians
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<TechnicianResponse> createTechnician(
             @Valid @RequestBody TechnicianRequest request,
             @AuthenticationPrincipal UserDetailsImpl principal) {
@@ -135,7 +135,7 @@ public class TechnicianController {
      * PUT /api/technicians/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<TechnicianResponse> updateTechnician(
             @PathVariable String id,
             @Valid @RequestBody TechnicianUpdateRequest request,
@@ -162,7 +162,7 @@ public class TechnicianController {
      * PATCH /api/technicians/{id}/toggle-status
      */
     @PatchMapping("/{id}/toggle-status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN' or hasRole('SUPERVISOR'))")
     public ResponseEntity<TechnicianResponse> toggleTechnicianStatus(@PathVariable String id,
                                                                      @AuthenticationPrincipal UserDetailsImpl principal) {
         String updatorId = principal.getId();
