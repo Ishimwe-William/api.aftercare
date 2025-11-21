@@ -22,7 +22,7 @@ import java.util.List;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/service-tasks")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('SUPERVISOR')")
 public class ServiceTaskController {
 
     private final ServiceTaskService serviceTaskService;
@@ -129,7 +129,7 @@ public class ServiceTaskController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPERVISOR')")
     public ResponseEntity<ServiceTaskResponse> updateTask(
             @PathVariable String id,
             @Valid @RequestBody ServiceTaskRequest request,
