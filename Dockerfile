@@ -22,4 +22,5 @@ RUN ./mvnw package -DskipTests
 FROM eclipse-temurin:17-jdk-alpine
 VOLUME /tmp
 COPY --from=builder /app/target/*.jar app.jar
+EXPOSE 8082
 ENTRYPOINT ["java", "-Xmx350m", "-Xss256k", "-XX:+UseSerialGC", "-jar", "/app.jar"]
