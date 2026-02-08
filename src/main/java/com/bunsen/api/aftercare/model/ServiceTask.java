@@ -65,6 +65,19 @@ public class ServiceTask extends BaseEntity {
     @Column(name = "due_time")
     private LocalDateTime dueTime;
 
+    // Helper method to check if task is ready for invoice generation
+    public boolean isReadyForInvoice() {
+        return this.status == ETaskStatus.COMPLETED && this.issueType != null;
+    }
+
+    // Helper method to get a display-friendly issue description
+    public String getIssueDescription() {
+        if (description != null && !description.trim().isEmpty()) {
+            return String.format("%s - %s", issueType, description);
+        }
+        return issueType;
+    }
+
     @Override
     protected void onCreate() {
         super.onCreate();

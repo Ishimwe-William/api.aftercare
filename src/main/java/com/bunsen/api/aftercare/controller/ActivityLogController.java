@@ -15,7 +15,7 @@ import java.util.List;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/activity-logs")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('SUPERVISOR')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('SUPERVISOR') or hasRole('MANAGER')")
 public class ActivityLogController {
 
     private final ActivityLogService activityLogService;

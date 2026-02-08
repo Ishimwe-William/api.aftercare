@@ -22,24 +22,25 @@ public class InvoiceService {
     private final InvoiceLineItemRepository invoiceLineItemRepository;
     private final ServiceTaskRepository serviceTaskRepository;
     private final TaskPartUsageRepository taskPartUsageRepository;
-    private final LaborRateService laborRateService;
+    private final KnownIssueRepository knownIssueRepository;
     private final MotorcycleRepository motorcycleRepository;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           InvoiceLineItemRepository invoiceLineItemRepository,
                           ServiceTaskRepository serviceTaskRepository,
                           TaskPartUsageRepository taskPartUsageRepository,
-                          LaborRateService laborRateService, MotorcycleRepository motorcycleRepository) {
+                          KnownIssueRepository knownIssueRepository,
+                          MotorcycleRepository motorcycleRepository) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceLineItemRepository = invoiceLineItemRepository;
         this.serviceTaskRepository = serviceTaskRepository;
         this.taskPartUsageRepository = taskPartUsageRepository;
-        this.laborRateService = laborRateService;
+        this.knownIssueRepository = knownIssueRepository;
         this.motorcycleRepository = motorcycleRepository;
     }
 
     @Transactional
-    public Invoice generateInvoice(String taskId, BigDecimal laborCost, BigDecimal partsCost, BigDecimal discount, String notes) {
+    public Invoice generateInvoice(String taskId, BigDecimal partsCost, BigDecimal discount, String notes, BigDecimal zero) {
         // Enforce the business rule: Task can have at most 1 invoice.
         Optional<Invoice> existingInvoice = invoiceRepository.findByTaskId(taskId);
         if (existingInvoice.isPresent()) {
@@ -56,14 +57,20 @@ public class InvoiceService {
             throw new TaskStatusException(task.getStatus().name(), "generate invoice");
         }
 
-        // Capture static snapshot data
-        BigDecimal actualDiscount = discount != null ? discount : BigDecimal.ZERO;
-        BigDecimal totalCost = laborCost.add(partsCost).subtract(actualDiscount);
+        // Get the known issue price based on the issue type
+        BigDecimal issueCost = BigDecimal.ZERO;
+        String knownIssueName = task.getIssueType();
 
-        // Get current labor rate
-        BigDecimal currentLaborRate = laborRateService.getRecentRate()
-                .map(LaborRate::getRate)
-                .orElse(BigDecimal.ZERO);
+        if (knownIssueName != null && !knownIssueName.trim().isEmpty()) {
+            Optional<KnownIssue> knownIssueOpt = knownIssueRepository.findByNameIgnoreCase(knownIssueName);
+            if (knownIssueOpt.isPresent()) {
+                issueCost = knownIssueOpt.get().getPrice();
+            }
+        }
+
+        // Calculate total cost
+        BigDecimal actualDiscount = discount != null ? discount : BigDecimal.ZERO;
+        BigDecimal totalCost = issueCost.add(partsCost).subtract(actualDiscount);
 
         Invoice invoice = new Invoice();
         invoice.setInvoiceId(UUID.randomUUID().toString());
@@ -77,10 +84,12 @@ public class InvoiceService {
         invoice.setMotorcyclePlateNumber(task.getMotorcycle().getPlateNumber());
         invoice.setTechnicianName(task.getTechnician().getFullName());
         invoice.setIssueType(task.getIssueType());
-        invoice.setLaborHours(task.getLaborHours());
-        invoice.setLaborRate(currentLaborRate);
 
-        invoice.setLaborCost(laborCost);
+        // Store known issue details as snapshot
+        invoice.setKnownIssueName(knownIssueName);
+        invoice.setKnownIssuePrice(issueCost);
+
+        invoice.setIssueCost(issueCost);
         invoice.setPartsCost(partsCost);
         invoice.setDiscount(actualDiscount);
         invoice.setTotalCost(totalCost);
@@ -113,15 +122,18 @@ public class InvoiceService {
      * Method to update an existing invoice.
      */
     @Transactional
-    public Invoice updateInvoice(String invoiceId, BigDecimal laborCost, BigDecimal partsCost, BigDecimal discount, String notes) {
+    public Invoice updateInvoice(String invoiceId, BigDecimal partsCost, BigDecimal discount, String notes) {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", "invoiceId", invoiceId));
 
         BigDecimal actualDiscount = discount != null ? discount : BigDecimal.ZERO;
-        BigDecimal newTotalCost = laborCost.add(partsCost).subtract(actualDiscount);
+
+        // Get the issue cost from the stored snapshot (or recalculate if needed)
+        BigDecimal issueCost = invoice.getIssueCost() != null ? invoice.getIssueCost() : BigDecimal.ZERO;
+
+        BigDecimal newTotalCost = issueCost.add(partsCost).subtract(actualDiscount);
 
         // Update mutable fields
-        invoice.setLaborCost(laborCost);
         invoice.setPartsCost(partsCost);
         invoice.setDiscount(actualDiscount);
         invoice.setTotalCost(newTotalCost);

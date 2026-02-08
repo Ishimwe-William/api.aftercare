@@ -52,6 +52,12 @@ public class InvoiceDTO {
         private String ownerPhone ;
         private String technicianName;
         private String issueType;
+
+        // Known Issue details (snapshot)
+        private String knownIssueName;
+        private BigDecimal knownIssuePrice;
+        private BigDecimal issueCost;
+
         private BigDecimal laborHours;
         private BigDecimal laborRate;
         private BigDecimal laborCost;
@@ -75,6 +81,9 @@ public class InvoiceDTO {
                     .motorcyclePlateNumber(invoice.getMotorcyclePlateNumber())
                     .technicianName(invoice.getTechnicianName())
                     .issueType(invoice.getIssueType())
+                    .knownIssueName(invoice.getKnownIssueName())
+                    .knownIssuePrice(invoice.getKnownIssuePrice())
+                    .issueCost(invoice.getIssueCost())
                     .laborHours(invoice.getLaborHours())
                     .laborRate(invoice.getLaborRate())
                     .laborCost(invoice.getLaborCost())

@@ -33,15 +33,17 @@ public class InvoiceController {
 
     /**
      * Matches: invoiceSlice.js -> generateInvoice
+     * Updated to work with Known Issues instead of Labor Rates
      */
     @PostMapping
     public ResponseEntity<InvoiceResponse> createInvoice(@Valid @RequestBody InvoiceRequest request) {
+        // Set a default labor cost if not provided
         Invoice invoice = invoiceService.generateInvoice(
                 request.getTaskId(),
-                request.getLaborCost(),
                 request.getPartsCost(),
                 request.getDiscount(),
-                request.getNotes()
+                request.getNotes(),
+                BigDecimal.ZERO
         );
 
         InvoiceResponse response = InvoiceResponse.fromEntity(invoice);
@@ -116,6 +118,7 @@ public class InvoiceController {
 
     /**
      * To update an existing invoice.
+     * Updated to work with Known Issues (no laborCost parameter)
      */
     @PutMapping("/{invoiceId}")
     public ResponseEntity<InvoiceResponse> updateInvoice(
@@ -124,7 +127,6 @@ public class InvoiceController {
 
         Invoice invoice = invoiceService.updateInvoice(
                 invoiceId,
-                request.getLaborCost(),
                 request.getPartsCost(),
                 request.getDiscount(),
                 request.getNotes()

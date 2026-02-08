@@ -20,7 +20,7 @@ import java.util.Map;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/spare-parts")
-@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+@PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN') or hasRole('MANAGER')")
 public class SparePartController {
 
     private final SparePartService sparePartService;

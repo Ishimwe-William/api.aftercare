@@ -41,6 +41,16 @@ public class Invoice extends TimestampedEntity {
     @Column(name = "motorcycle_plate_number", length = 100)
     private String motorcyclePlateNumber;
 
+    // Known Issue snapshot (replaces labor rate and hours)
+    @Column(name = "known_issue_name")
+    private String knownIssueName;
+
+    @Column(name = "known_issue_price", precision = 10, scale = 2)
+    private BigDecimal knownIssuePrice;
+
+    @Column(name = "issue_cost", precision = 10, scale = 2)
+    private BigDecimal issueCost;
+
     @Column(name = "technician_name", length = 255)
     private String technicianName;
 
@@ -53,7 +63,7 @@ public class Invoice extends TimestampedEntity {
     @Column(name = "labor_rate", precision = 10, scale = 2)
     private BigDecimal laborRate;
 
-    @Column(name = "labor_cost", nullable = false, precision = 10, scale = 2)
+    @Column(name = "labor_cost", precision = 10, scale = 2)
     private BigDecimal laborCost;
 
     @Column(name = "parts_cost", nullable = false, precision = 10, scale = 2)
