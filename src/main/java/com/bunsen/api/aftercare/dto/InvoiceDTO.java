@@ -2,7 +2,6 @@ package com.bunsen.api.aftercare.dto;
 
 import com.bunsen.api.aftercare.model.Invoice;
 import com.bunsen.api.aftercare.model.InvoiceLineItem;
-import com.bunsen.api.aftercare.model.embedded.OwnerInfo;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

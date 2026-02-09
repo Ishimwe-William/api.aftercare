@@ -1,7 +1,6 @@
 package com.bunsen.api.aftercare.model;
 
 import com.bunsen.api.aftercare.model.base.TimestampedEntity;
-import com.bunsen.api.aftercare.model.embedded.OwnerInfo;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
