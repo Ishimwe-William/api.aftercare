@@ -46,4 +46,14 @@ public class ActivityLogController {
     public ResponseEntity<List<ActivityLogDTO>> getLogsByUser(@PathVariable String userId) {
         return ResponseEntity.ok(activityLogService.getLogsByUser(userId));
     }
+
+    /**
+     * Returns all distinct action types currently stored in the DB.
+     * Used to dynamically populate the Action filter dropdown.
+     * Results are cached server-side via @Cacheable in the service.
+     */
+    @GetMapping("/actions")
+    public ResponseEntity<List<String>> getDistinctActions() {
+        return ResponseEntity.ok(activityLogService.getDistinctActions());
+    }
 }

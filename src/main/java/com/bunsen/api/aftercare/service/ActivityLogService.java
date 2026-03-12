@@ -6,6 +6,7 @@ import com.bunsen.api.aftercare.model.ActivityLog;
 import com.bunsen.api.aftercare.model.User;
 import com.bunsen.api.aftercare.repository.ActivityLogRepository;
 import com.bunsen.api.aftercare.repository.UserRepository;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class ActivityLogService {
+
     private final ActivityLogRepository activityLogRepository;
     private final UserRepository userRepository;
 
@@ -45,10 +47,10 @@ public class ActivityLogService {
         Page<ActivityLog> logs;
 
         if (action != null && userId != null) {
-            logs = activityLogRepository.findByTimestampBetweenAndActionAndUserId(
+            logs = activityLogRepository.findByTimestampBetweenAndActionContainingAndUserId(
                     startDate, endDate, action, userId, pageable);
         } else if (action != null) {
-            logs = activityLogRepository.findByTimestampBetweenAndAction(
+            logs = activityLogRepository.findByTimestampBetweenAndActionContaining(
                     startDate, endDate, action, pageable);
         } else if (userId != null) {
             logs = activityLogRepository.findByTimestampBetweenAndUserId(
@@ -65,9 +67,12 @@ public class ActivityLogService {
         Page<ActivityLog> logs;
 
         if (action != null && userId != null) {
-            logs = activityLogRepository.findByActionAndUserIdOrderByTimestampDesc(action, userId, pageable);
+            // Use LIKE so "USER_CREATED" also matches "USER_CREATED_ADMIN"
+            logs = activityLogRepository.findByActionContainingAndUserIdOrderByTimestampDesc(
+                    action, userId, pageable);
         } else if (action != null) {
-            logs = activityLogRepository.findByActionOrderByTimestampDesc(action, pageable);
+            // Use LIKE so "USER_CREATED" also matches "USER_CREATED_ADMIN"
+            logs = activityLogRepository.findByActionContainingOrderByTimestampDesc(action, pageable);
         } else if (userId != null) {
             logs = activityLogRepository.findByUserIdOrderByTimestampDesc(userId, pageable);
         } else {
@@ -87,5 +92,17 @@ public class ActivityLogService {
     @Transactional
     public int reassignLogs(String oldUserId, String newUserId) {
         return activityLogRepository.reassignLogs(oldUserId, newUserId);
+    }
+
+    /**
+     * Returns all distinct action strings stored in the DB, sorted alphabetically.
+     * Cached so repeated calls don't hit the database — cache is invalidated
+     * whenever a new log is written (wire into createLog via @CacheEvict if needed,
+     * or rely on the TTL configured in your CacheManager).
+     */
+    @Cacheable("activityLogActions")
+    @Transactional(readOnly = true)
+    public List<String> getDistinctActions() {
+        return activityLogRepository.findDistinctActions();
     }
 }

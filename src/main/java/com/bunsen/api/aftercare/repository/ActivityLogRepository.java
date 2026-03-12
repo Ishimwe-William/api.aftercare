@@ -4,7 +4,6 @@ import com.bunsen.api.aftercare.model.ActivityLog;
 import com.bunsen.api.aftercare.repository.base.TimestampedRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,19 +38,41 @@ public interface ActivityLogRepository extends TimestampedRepository<ActivityLog
     @Query("SELECT al FROM ActivityLog al ORDER BY al.timestamp DESC")
     Page<ActivityLog> findRecentLogs(Pageable pageable);
 
-    // New filtering queries
-    Page<ActivityLog> findByActionOrderByTimestampDesc(String action, Pageable pageable);
 
     Page<ActivityLog> findByUserIdOrderByTimestampDesc(String userId, Pageable pageable);
 
-    Page<ActivityLog> findByActionAndUserIdOrderByTimestampDesc(String action, String userId, Pageable pageable);
-
-    Page<ActivityLog> findByTimestampBetweenAndAction(LocalDateTime startDate, LocalDateTime endDate,
-                                                      String action, Pageable pageable);
 
     Page<ActivityLog> findByTimestampBetweenAndUserId(LocalDateTime startDate, LocalDateTime endDate,
                                                       String userId, Pageable pageable);
 
-    Page<ActivityLog> findByTimestampBetweenAndActionAndUserId(LocalDateTime startDate, LocalDateTime endDate,
-                                                               String action, String userId, Pageable pageable);
+    /**
+     * "USER_CREATED" will match "USER_CREATED", "USER_CREATED_ADMIN", etc.
+     */
+    @Query("SELECT l FROM ActivityLog l WHERE l.action LIKE %:action% ORDER BY l.timestamp DESC")
+    Page<ActivityLog> findByActionContainingOrderByTimestampDesc(@Param("action") String action,
+                                                                 Pageable pageable);
+
+    @Query("SELECT l FROM ActivityLog l WHERE l.action LIKE %:action% AND l.user.id = :userId ORDER BY l.timestamp DESC")
+    Page<ActivityLog> findByActionContainingAndUserIdOrderByTimestampDesc(@Param("action") String action,
+                                                                          @Param("userId") String userId,
+                                                                          Pageable pageable);
+
+    @Query("SELECT l FROM ActivityLog l WHERE l.timestamp BETWEEN :start AND :end AND l.action LIKE %:action% ORDER BY l.timestamp DESC")
+    Page<ActivityLog> findByTimestampBetweenAndActionContaining(@Param("start") LocalDateTime start,
+                                                                @Param("end") LocalDateTime end,
+                                                                @Param("action") String action,
+                                                                Pageable pageable);
+
+    @Query("SELECT l FROM ActivityLog l WHERE l.timestamp BETWEEN :start AND :end AND l.action LIKE %:action% AND l.user.id = :userId ORDER BY l.timestamp DESC")
+    Page<ActivityLog> findByTimestampBetweenAndActionContainingAndUserId(@Param("start") LocalDateTime start,
+                                                                         @Param("end") LocalDateTime end,
+                                                                         @Param("action") String action,
+                                                                         @Param("userId") String userId,
+                                                                         Pageable pageable);
+    /**
+     * Returns every unique action value in the table, alphabetically sorted.
+     * Cached in ActivityLogService via @Cacheable("activityLogActions").
+     */
+    @Query("SELECT DISTINCT l.action FROM ActivityLog l ORDER BY l.action ASC")
+    List<String> findDistinctActions();
 }
