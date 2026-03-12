@@ -6,6 +6,7 @@ import com.bunsen.api.aftercare.dto.SparePartDTO;
 import com.bunsen.api.aftercare.dto.TechnicianDTO;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.model.*;
+import com.bunsen.api.aftercare.service.helper.TaskPriorityCalculator;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -19,6 +20,12 @@ import java.util.stream.Collectors;
  */
 @Component
 public class EntityMapperUtil {
+
+    private final TaskPriorityCalculator priorityCalculator;
+
+    public EntityMapperUtil(TaskPriorityCalculator priorityCalculator) {
+        this.priorityCalculator = priorityCalculator;
+    }
 
     /**
      * Map User to TechnicianResponse
@@ -73,6 +80,7 @@ public class EntityMapperUtil {
                 .updatedAt(task.getUpdatedAt())
                 .durationInHours(durationInHours)
                 .isOverdue(isOverdue)
+                .priority(priorityCalculator.determinePriority(task))
                 .build();
     }
 

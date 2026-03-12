@@ -76,6 +76,7 @@ public class ServiceTaskDTO {
         private LocalDateTime updatedAt;
         private Long durationInHours;
         private Boolean isOverdue;
+        private String priority;
     }
 
     @Data
