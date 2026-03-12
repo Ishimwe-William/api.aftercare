@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.Set;
 
 public class TechnicianDTO {
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -32,6 +33,7 @@ public class TechnicianDTO {
         private Double averageCompletionTimeHours;
         private Double efficiencyScore;
     }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -54,8 +56,11 @@ public class TechnicianDTO {
 
         private String photoUrl;
 
-        private boolean enabled = true;
+        /** e.g. "Engine", "Electrical", "Brakes", "Tyres", "General" */
+        @Size(max = 100, message = "Speciality must not exceed 100 characters")
+        private String speciality;
 
+        private boolean enabled = true;
         private boolean status = true;
     }
 
@@ -76,10 +81,14 @@ public class TechnicianDTO {
 
         private String photoUrl;
 
-        private Boolean enabled;
+        /** Update the technician's area of expertise */
+        @Size(max = 100, message = "Speciality must not exceed 100 characters")
+        private String speciality;
 
+        private Boolean enabled;
         private Boolean status;
     }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -99,7 +108,11 @@ public class TechnicianDTO {
         private Double averageCompletionTimeHours;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+
+        /** Technician's area of expertise — shown in task assignment dropdowns */
+        private String speciality;
     }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -112,5 +125,4 @@ public class TechnicianDTO {
         private boolean available;
         private String status;
     }
-
 }

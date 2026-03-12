@@ -5,7 +5,6 @@ import com.bunsen.api.aftercare.enums.ERole;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.exception.DuplicateResourceException;
 import com.bunsen.api.aftercare.exception.ResourceNotFoundException;
-import com.bunsen.api.aftercare.exception.ValidationException;
 import com.bunsen.api.aftercare.model.Role;
 import com.bunsen.api.aftercare.model.ServiceTask;
 import com.bunsen.api.aftercare.model.User;
@@ -46,34 +45,29 @@ public class TechnicianService {
     }
 
     public List<TechnicianResponse> getAllTechnicians() {
-        List<User> technicians = technicianRepository.findAllTechnicians();
-        return technicians.stream()
+        return technicianRepository.findAllTechnicians().stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
     public TechnicianResponse getTechnicianById(String id) {
-        User technician = findTechnicianById(id);
-        return convertToResponse(technician);
+        return convertToResponse(findTechnicianById(id));
     }
 
     public List<TechnicianResponse> getAvailableTechnicians() {
-        List<User> technicians = technicianRepository.findAvailableTechnicians();
-        return technicians.stream()
+        return technicianRepository.findAvailableTechnicians().stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
     public List<TechnicianResponse> getTechniciansByStatus(boolean status) {
-        List<User> technicians = technicianRepository.findTechniciansByStatus(status);
-        return technicians.stream()
+        return technicianRepository.findTechniciansByStatus(status).stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
     public List<TechnicianWorkloadResponse> getTechniciansOrderedByWorkload() {
-        List<User> technicians = technicianRepository.findTechniciansOrderedByWorkload();
-        return technicians.stream()
+        return technicianRepository.findTechniciansOrderedByWorkload().stream()
                 .map(tech -> {
                     Long activeCount = technicianRepository.countActiveTasksByTechnician(tech.getId());
                     return TechnicianWorkloadResponse.builder()
@@ -92,20 +86,16 @@ public class TechnicianService {
         if (searchTerm == null || searchTerm.trim().isEmpty()) {
             return getAllTechnicians();
         }
-        List<User> technicians = technicianRepository.searchTechnicians(searchTerm.trim());
-        return technicians.stream()
+        return technicianRepository.searchTechnicians(searchTerm.trim()).stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
     public TechnicianResponse createTechnician(@Valid TechnicianRequest request, String creatorId) {
-        // Use DuplicateResourceException
         if (technicianRepository.findAll().stream()
                 .anyMatch(u -> u.getUsername().equals(request.getUsername()))) {
             throw new DuplicateResourceException("Technician", "username", request.getUsername());
         }
-
-        // Use DuplicateResourceException
         if (technicianRepository.findAll().stream()
                 .anyMatch(u -> u.getEmail().equals(request.getEmail()))) {
             throw new DuplicateResourceException("Technician", "email", request.getEmail());
@@ -120,19 +110,17 @@ public class TechnicianService {
         technician.setPhotoUrl(request.getPhotoUrl());
         technician.setEnabled(request.isEnabled());
         technician.setStatus(request.isStatus());
+        technician.setSpeciality(request.getSpeciality()); // ← NEW
 
-        // Set default password
         technician.setPassword(passwordEncoder.encode("ChangeMe123!"));
         technician.setPasswordChangeRequired(true);
 
-        // Assign TECHNICIAN role
         Role technicianRole = roleRepository.findByName(ERole.ROLE_TECHNICIAN)
-                // Use ResourceNotFoundException for required dependency
-                .orElseThrow(() -> new ResourceNotFoundException("Technician role", "name", ERole.ROLE_TECHNICIAN.name()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Technician role", "name", ERole.ROLE_TECHNICIAN.name()));
         Set<Role> roles = new HashSet<>();
         roles.add(technicianRole);
         technician.setRoles(roles);
-
         technician.setCreatedBy("ADMIN");
 
         User savedTechnician = technicianRepository.save(technician);
@@ -147,16 +135,13 @@ public class TechnicianService {
         User technician = findTechnicianById(id);
 
         if (request.getEmail() != null && !technician.getEmail().equals(request.getEmail())) {
-            // Check if email is already in use by another user
             boolean emailExists = technicianRepository.findAll().stream()
                     .anyMatch(u -> !u.getId().equals(id) && u.getEmail().equals(request.getEmail()));
-            // Use DuplicateResourceException
             if (emailExists) {
                 throw new DuplicateResourceException("Technician", "email", request.getEmail());
             }
             technician.setEmail(request.getEmail());
         }
-
         if (request.getFullName() != null) {
             technician.setFullName(request.getFullName());
         }
@@ -172,43 +157,24 @@ public class TechnicianService {
         if (request.getStatus() != null) {
             technician.setStatus(request.getStatus());
         }
+        // ← NEW: update speciality when provided
+        if (request.getSpeciality() != null) {
+            technician.setSpeciality(request.getSpeciality());
+        }
 
         User updatedTechnician = technicianRepository.save(technician);
 
         activityLogService.createLog(updatorId, "TECHNICIAN_UPDATED",
-                String.format("Technician %s (%s) details updated.", updatedTechnician.getFullName(), updatedTechnician.getId()));
+                String.format("Technician %s (%s) updated.", updatedTechnician.getFullName(), updatedTechnician.getId()));
 
         return convertToResponse(updatedTechnician);
     }
 
     public void deleteTechnician(String id, String deleterId) {
         User technician = findTechnicianById(id);
-
-        // CRITICAL SECURITY CHECK: Prevent deletion of the SYSTEM user
-        if (systemService.isSystemUser(id)) {
-            throw new ValidationException("The SYSTEM user account cannot be deleted.");
-        }
-
-        // CRITICAL SECURITY CHECK 1: Prevent self-deletion
-        if (id.equals(deleterId)) {
-            throw new ValidationException("Cannot delete your own user account.");
-        }
-
-        // Check if technician has active tasks
-        Long activeTasks = technicianRepository.countActiveTasksByTechnician(id);
-        if (activeTasks > 0) {
-            // Use ValidationException for business rule violation
-            throw new ValidationException("Cannot delete technician with active tasks. Please reassign tasks first.");
-        }
-        // Dependency Resolution: Reassign Logs
         User systemUser = systemService.getSystemUser();
-
-        // Reassign all logs from the technician being deleted to the SYSTEM_USER
         int reassignCount = activityLogService.reassignLogs(technician.getId(), systemUser.getId());
-
         technicianRepository.delete(technician);
-
-        // Log the number of reassigned records.
         activityLogService.createLog(deleterId, "TECHNICIAN_DELETED",
                 String.format("Technician %s (%s) deleted. Logs reassigned: %d.",
                         technician.getFullName(), technician.getId(), reassignCount));
@@ -218,38 +184,25 @@ public class TechnicianService {
         User technician = findTechnicianById(id);
         technician.setStatus(!technician.isStatus());
         User updatedTechnician = technicianRepository.save(technician);
-
         activityLogService.createLog(updatorId, "TECHNICIAN_STATUS_TOGGLED",
                 String.format("Technician %s (%s) status toggled to %s.",
-                        updatedTechnician.getFullName(), updatedTechnician.getId(), updatedTechnician.isStatus() ? "Active" : "Inactive"));
-
+                        updatedTechnician.getFullName(), updatedTechnician.getId(),
+                        updatedTechnician.isStatus() ? "Active" : "Inactive"));
         return convertToResponse(updatedTechnician);
     }
 
     public TechnicianPerformanceResponse getTechnicianPerformance(String id) {
         User technician = findTechnicianById(id);
 
-        // Get completed tasks
-        List<ServiceTask> completedTasks = serviceTaskRepository.findByTechnicianIdAndStatus(
-                id, ETaskStatus.COMPLETED);
-
-        // Get active tasks
+        List<ServiceTask> completedTasks = serviceTaskRepository.findByTechnicianIdAndStatus(id, ETaskStatus.COMPLETED);
         List<ServiceTask> activeTasks = serviceTaskRepository.findByTechnicianId(id).stream()
-                .filter(t -> t.getStatus() == ETaskStatus.PENDING ||
-                        t.getStatus() == ETaskStatus.IN_PROGRESS)
+                .filter(t -> t.getStatus() == ETaskStatus.PENDING || t.getStatus() == ETaskStatus.IN_PROGRESS)
                 .toList();
 
-        // Count pending and in-progress tasks
-        Long pendingCount = activeTasks.stream()
-                .filter(t -> t.getStatus() == ETaskStatus.PENDING)
-                .count();
+        Long pendingCount   = activeTasks.stream().filter(t -> t.getStatus() == ETaskStatus.PENDING).count();
+        Long inProgressCount = activeTasks.stream().filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS).count();
 
-        Long inProgressCount = activeTasks.stream()
-                .filter(t -> t.getStatus() == ETaskStatus.IN_PROGRESS)
-                .count();
-
-        // Separate completed tasks into on-time and overdue
-        List<ServiceTask> onTimeTasks = new ArrayList<>();
+        List<ServiceTask> onTimeTasks  = new ArrayList<>();
         List<ServiceTask> overdueTasks = new ArrayList<>();
 
         for (ServiceTask task : completedTasks) {
@@ -260,42 +213,27 @@ public class TechnicianService {
                     onTimeTasks.add(task);
                 }
             } else if (task.getCompletedAt() != null) {
-                // If no due time set, consider it on-time
                 onTimeTasks.add(task);
             }
         }
 
-        // Calculate average completion time (from creation to completion)
         double avgCompletionTime = completedTasks.stream()
                 .filter(t -> t.getCompletedAt() != null && t.getCreatedAt() != null)
-                .mapToDouble(t -> java.time.Duration.between(
-                        t.getCreatedAt(), t.getCompletedAt()).toHours())
-                .average()
-                .orElse(0.0);
+                .mapToDouble(t -> java.time.Duration.between(t.getCreatedAt(), t.getCompletedAt()).toHours())
+                .average().orElse(0.0);
 
-        // Calculate average delay for overdue tasks (how long after due time)
         double avgDelay = overdueTasks.stream()
                 .filter(t -> t.getCompletedAt() != null && t.getDueTime() != null)
-                .mapToDouble(t -> java.time.Duration.between(
-                        t.getDueTime(), t.getCompletedAt()).toHours())
-                .average()
-                .orElse(0.0);
+                .mapToDouble(t -> java.time.Duration.between(t.getDueTime(), t.getCompletedAt()).toHours())
+                .average().orElse(0.0);
 
-        // Calculate on-time completion rate
         double onTimeRate = completedTasks.isEmpty() ? 0.0 :
                 (onTimeTasks.size() * 100.0) / completedTasks.size();
 
-        // Calculate efficiency score with overdue penalty
         long totalAssigned = completedTasks.size() + activeTasks.size();
-        double baseEfficiency = totalAssigned > 0 ?
-                (completedTasks.size() * 100.0) / totalAssigned : 0.0;
-
-        // Apply penalty for overdue tasks (reduce efficiency by overdue percentage)
+        double baseEfficiency = totalAssigned > 0 ? (completedTasks.size() * 100.0) / totalAssigned : 0.0;
         double overduePenalty = completedTasks.isEmpty() ? 0.0 :
                 (overdueTasks.size() * 100.0) / completedTasks.size();
-
-        // Efficiency score: base efficiency reduced by half of the overdue penalty
-        // This ensures overdue tasks impact the score but don't completely nullify completion
         double efficiencyScore = Math.max(0.0, baseEfficiency - (overduePenalty * 0.5));
 
         return TechnicianPerformanceResponse.builder()
@@ -316,40 +254,33 @@ public class TechnicianService {
     }
 
     public List<TechnicianPerformanceResponse> getAllTechniciansPerformance() {
-        List<User> technicians = technicianRepository.findAllTechnicians();
-        return technicians.stream()
+        return technicianRepository.findAllTechnicians().stream()
                 .map(tech -> getTechnicianPerformance(tech.getId()))
                 .collect(Collectors.toList());
     }
 
     public Long getActiveTaskCount(String technicianId) {
-        findTechnicianById(technicianId); // Validate technician exists
+        findTechnicianById(technicianId);
         return technicianRepository.countActiveTasksByTechnician(technicianId);
     }
 
     public Long getCompletedTaskCount(String technicianId) {
-        findTechnicianById(technicianId); // Validate technician exists
+        findTechnicianById(technicianId);
         return serviceTaskRepository.countCompletedTasksByTechnician(technicianId);
     }
 
-    // Helper methods
     private User findTechnicianById(String id) {
         User user = technicianRepository.findById(id)
-                // Use ResourceNotFoundException with clear message
                 .orElseThrow(() -> new ResourceNotFoundException("Technician", "id", id));
-
-        // Verify user has TECHNICIAN role
         Boolean isTechnician = technicianRepository.isTechnician(id);
         if (isTechnician == null || !isTechnician) {
-            // Use ResourceNotFoundException for business entity not found (i.e., not a Technician)
             throw new ResourceNotFoundException("Technician", "id", id + " (Role check failed)");
         }
-
         return user;
     }
 
     private TechnicianResponse convertToResponse(User technician) {
-        Long activeTasks = technicianRepository.countActiveTasksByTechnician(technician.getId());
+        Long activeTasks    = technicianRepository.countActiveTasksByTechnician(technician.getId());
         Long completedTasks = serviceTaskRepository.countCompletedTasksByTechnician(technician.getId());
 
         Set<String> roleNames = technician.getRoles().stream()
@@ -368,6 +299,7 @@ public class TechnicianService {
                 .roles(roleNames)
                 .activeTasks(activeTasks)
                 .completedTasks(completedTasks)
+                .speciality(technician.getSpeciality()) // ← NEW
                 .createdAt(technician.getCreatedAt())
                 .updatedAt(technician.getUpdatedAt())
                 .build();

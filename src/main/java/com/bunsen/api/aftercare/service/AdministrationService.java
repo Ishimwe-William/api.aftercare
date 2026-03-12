@@ -73,6 +73,7 @@ public class AdministrationService {
         user.setStatus(request.isStatus());
         user.setFullName(request.getFullName());
         user.setPhoneNumber(request.getPhoneNumber());
+        user.setSpeciality(request.getSpeciality());
 
         Set<Role> roles = new HashSet<>();
         request.getRoles().forEach(roleName -> {
@@ -210,6 +211,7 @@ public class AdministrationService {
                 .photoUrl(user.getPhotoUrl())
                 .enabled(user.isEnabled())
                 .status(user.isStatus())
+                .speciality(user.getSpeciality())
                 .roles(roleNames)
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

@@ -21,6 +21,7 @@ public class UserResponse {
     private String photoUrl;
     private boolean enabled;
     private boolean status;
+    private String speciality;
     private Set<String> roles;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

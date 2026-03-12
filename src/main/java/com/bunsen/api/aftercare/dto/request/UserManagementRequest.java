@@ -23,5 +23,6 @@ public class UserManagementRequest {
     private String phoneNumber;
     private Date updatedAt;
     private boolean passwordChangeRequired;
+    private String speciality;
     private boolean status;
 }

@@ -1,19 +1,13 @@
 package com.bunsen.api.aftercare.util;
 
-import com.bunsen.api.aftercare.dto.MotorcycleDTO;
 import com.bunsen.api.aftercare.dto.ServiceTaskDTO;
-import com.bunsen.api.aftercare.dto.SparePartDTO;
-import com.bunsen.api.aftercare.dto.TechnicianDTO;
 import com.bunsen.api.aftercare.enums.ETaskStatus;
 import com.bunsen.api.aftercare.model.*;
 import com.bunsen.api.aftercare.service.helper.TaskPriorityCalculator;
 import org.springframework.stereotype.Component;
 
-import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Centralized mapper utility to avoid repetitive mapping logic
@@ -25,31 +19,6 @@ public class EntityMapperUtil {
 
     public EntityMapperUtil(TaskPriorityCalculator priorityCalculator) {
         this.priorityCalculator = priorityCalculator;
-    }
-
-    /**
-     * Map User to TechnicianResponse
-     */
-    public TechnicianDTO.TechnicianResponse mapToTechnicianResponse(User technician, Long activeTasks, Long completedTasks) {
-        Set<String> roleNames = technician.getRoles().stream()
-                .map(role -> role.getName().name())
-                .collect(Collectors.toSet());
-
-        return TechnicianDTO.TechnicianResponse.builder()
-                .id(technician.getId())
-                .username(technician.getUsername())
-                .email(technician.getEmail())
-                .fullName(technician.getFullName())
-                .phoneNumber(technician.getPhoneNumber())
-                .photoUrl(technician.getPhotoUrl())
-                .enabled(technician.isEnabled())
-                .status(technician.isStatus())
-                .roles(roleNames)
-                .activeTasks(activeTasks)
-                .completedTasks(completedTasks)
-                .createdAt(technician.getCreatedAt())
-                .updatedAt(technician.getUpdatedAt())
-                .build();
     }
 
     /**
@@ -85,96 +54,6 @@ public class EntityMapperUtil {
     }
 
     /**
-     * Map Motorcycle to MotorcycleResponse
-     */
-    public MotorcycleDTO.MotorcycleResponse mapToMotorcycleResponse(Motorcycle motorcycle, int activeTasksCount, boolean needsService) {
-        return MotorcycleDTO.MotorcycleResponse.builder()
-                .id(motorcycle.getId())
-                .qrCode(motorcycle.getQrCode())
-                .model(motorcycle.getModel())
-                .plateNumber(motorcycle.getPlateNumber())
-                .ownerName(motorcycle.getOwner().getName())
-                .ownerPhone(motorcycle.getOwner().getPhone())
-                .ownerEmail(motorcycle.getOwner().getEmail())
-                .status(motorcycle.getStatus())
-                .lastServiceDate(motorcycle.getLastServiceDate())
-                .createdAt(motorcycle.getCreatedAt())
-                .updatedAt(motorcycle.getUpdatedAt())
-                .activeTasksCount(activeTasksCount)
-                .needsService(needsService)
-                .build();
-    }
-
-    /**
-     * Map SparePart to SparePartResponse
-     */
-    public SparePartDTO.SparePartResponse mapToSparePartResponse(SparePart part, Long totalUsed) {
-        return SparePartDTO.SparePartResponse.builder()
-                .id(part.getId())
-                .name(part.getName())
-                .description(part.getDescription())
-                .quantityAvailable(part.getQuantityAvailable())
-                .cost(part.getCost())
-                .supplierName(part.getSupplier().getName())
-                .supplierContact(part.getSupplier().getContact())
-                .lowStockThreshold(part.getLowStockThreshold())
-                .isLowStock(part.getQuantityAvailable() <= part.getLowStockThreshold())
-                .isOutOfStock(part.getQuantityAvailable() == 0)
-                .totalUsed(totalUsed != null ? totalUsed : 0L)
-                .createdAt(part.getCreatedAt())
-                .updatedAt(part.getUpdatedAt())
-                .build();
-    }
-
-    /**
-     * Map TaskPartUsage to PartUsageResponse
-     */
-    public SparePartDTO.PartUsageResponse mapToPartUsageResponse(TaskPartUsage usage) {
-        return SparePartDTO.PartUsageResponse.builder()
-                .usageId(usage.getUsageId())
-                .taskId(usage.getTask().getId())
-                .partId(usage.getPart().getId())
-                .partName(usage.getPart().getName())
-                .quantityUsed(usage.getQuantityUsed())
-                .notes(usage.getNotes())
-                .usedAt(usage.getUsedAt())
-                .build();
-    }
-
-    /**
-     * Calculate task progress percentage
-     */
-    public Integer calculateTaskProgress(ServiceTask task) {
-        return switch (task.getStatus()) {
-            case PENDING -> 0;
-            case IN_PROGRESS -> {
-                if (task.getEstimatedTime() != null && task.getStartedAt() != null) {
-                    long elapsed = Duration.between(task.getStartedAt(), LocalDateTime.now()).toMinutes();
-                    int progress = (int) ((elapsed * 100) / task.getEstimatedTime());
-                    yield Math.min(progress, 95);
-                }
-                yield 50;
-            }
-            case COMPLETED -> 100;
-            case PAUSED -> 30;
-            default -> 0;
-        };
-    }
-
-    /**
-     * Determine task priority
-     */
-    public String determineTaskPriority(ServiceTask task) {
-        if (task.getDueTime() != null) {
-            long hoursUntilDue = Duration.between(LocalDateTime.now(), task.getDueTime()).toHours();
-            if (hoursUntilDue < 0) return "critical";
-            if (hoursUntilDue < 4) return "high";
-            if (hoursUntilDue < 24) return "medium";
-        }
-        return "low";
-    }
-
-    /**
      * Calculate duration in hours
      */
     private Long calculateDuration(LocalDateTime start, LocalDateTime end) {
@@ -194,12 +73,5 @@ public class EntityMapperUtil {
             return task.getDueTime().isBefore(LocalDateTime.now());
         }
         return false;
-    }
-
-    /**
-     * Calculate total cost for part usage
-     */
-    public BigDecimal calculatePartUsageCost(int quantity, BigDecimal unitCost) {
-        return unitCost.multiply(BigDecimal.valueOf(quantity));
     }
 }
